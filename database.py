@@ -46,13 +46,12 @@ class SnowflakeConnection:
                 version = cursor.fetchone()[0]
                 cursor.close()
                 
-                st.success(f"✅ Successfully connected to Snowflake (Version: {version})")
                 logger.info("Successfully connected to Snowflake using native connector")
                 return True
                 
             except Exception as native_error:
-                st.warning(f"Native connector failed: {str(native_error)}")
-                st.info("Trying SQLAlchemy connector...")
+                logger.warning(f"Native connector failed: {str(native_error)}")
+                logger.info("Trying SQLAlchemy connector...")
                 
                 # Fall back to SQLAlchemy
                 connection_string = config.get_connection_string()
@@ -62,14 +61,16 @@ class SnowflakeConnection:
                 with self.engine.connect() as conn:
                     result = conn.execute(text("SELECT CURRENT_VERSION()"))
                     version = result.fetchone()[0]
-                    st.success(f"✅ Successfully connected to Snowflake (Version: {version})")
                 
                 logger.info("Successfully connected to Snowflake using SQLAlchemy")
                 return True
             
         except Exception as e:
-            st.error(f"❌ Failed to connect to Snowflake: {str(e)}")
-            st.info("Please verify your Snowflake credentials in .streamlit/secrets.toml")
+            logger.error(f"Failed to connect to Snowflake: {str(e)}")
+            # Only show error in UI if it's a critical error, not connection warnings
+            if "Incorrect username or password" in str(e) or "does not exist" in str(e):
+                st.error(f"❌ Failed to connect to Snowflake: {str(e)}")
+                st.info("Please verify your Snowflake credentials in .streamlit/secrets.toml")
             logger.error(f"Snowflake connection error: {str(e)}")
             return False
     

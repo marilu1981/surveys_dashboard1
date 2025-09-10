@@ -5,7 +5,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from database import get_database
-import streamlit_shadcn_ui as ui
 from streamlit_extras.stylable_container import stylable_container
 
 
@@ -108,12 +107,12 @@ def main():
     db = get_database()
     
     if survey_ids and not responses.empty:
-        st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
+        # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
         
         # Debug: Show available survey questions
         if 'SURVEY_QUESTION' in responses.columns:
             available_questions = responses['SURVEY_QUESTION'].unique()
-            st.info(f"📋 Available Survey Questions ({len(available_questions)}): {', '.join(available_questions[:5])}{'...' if len(available_questions) > 5 else ''}")
+            # st.info(f"📋 Available Survey Questions ({len(available_questions)}): {', '.join(available_questions[:5])}{'...' if len(available_questions) > 5 else ''}")
         
         # Helper function to create filters for a specific section
         def create_section_filters(section_name, data, include_gender=True, include_age=True):
@@ -200,19 +199,19 @@ def main():
         
         with col1:
             total_responses = len(responses)
-            ui.metric_card(title="Total Responses", content=f"{total_responses:,}")
+            st.metric("Total Responses", f"{total_responses:,}")
 
         
         with col2:
             unique_respondents = responses['PROFILEUUID'].nunique() if 'PROFILEUUID' in responses.columns else total_responses
-            ui.metric_card(title="Unique Responses", content=f"{unique_respondents:,}")
+            st.metric("Unique Responses", f"{unique_respondents:,}")
         
         with col3:
             if not analytics.empty:
                 avg_score = analytics.iloc[0, 2]  # avg_sem_score column
-                ui.metric_card(title="Average SEM Score", content=f"{avg_score:.1f}")
+                st.metric("Average SEM Score", f"{avg_score:.1f}")
             else:
-                ui.metric_card(title="Average SEM Score", content="NA")
+                st.metric("Average SEM Score", "NA")
         
         
         # Charts
@@ -774,26 +773,22 @@ def main():
                     col3, col4, col5, col6 = st.columns(4)
                     
                     with col3:
-                        ui.metric_card(
-                            title="Average Cost",
+                        st.metric("Average Cost",
                             content=f"R {avg_cost:,.2f}"
                         )
                     
                     with col4:
-                        ui.metric_card(
-                            title="Median Cost",
+                        st.metric("Median Cost",
                             content=f"R {median_cost:,.2f}"
                         )
                     
                     with col5:
-                        ui.metric_card(
-                            title="Minimum Cost",
+                        st.metric("Minimum Cost",
                             content=f"R {min_cost:,.2f}"
                         )
                     
                     with col6:
-                        ui.metric_card(
-                            title="Maximum Cost",
+                        st.metric("Maximum Cost",
                             content=f"R {max_cost:,.2f}"
                         )
                     
@@ -1287,25 +1282,25 @@ def main():
                     
                     if not monthly_costs.empty:
                         with col5:
-                            ui.metric_card(
+                            st.metric(
                                 title="Highest Monthly Avg per Commuter",
                                 content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].max():,.2f}"
                             )
                         
                         with col6:
-                            ui.metric_card(
+                            st.metric(
                                 title="Lowest Monthly Avg per Commuter",
                                 content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].min():,.2f}"
                             )
                         
                         with col7:
-                            ui.metric_card(
+                            st.metric(
                                 title="Overall Monthly Avg per Commuter",
                                 content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].mean():,.2f}"
                             )
                         
                         with col8:
-                            ui.metric_card(
+                            st.metric(
                                 title="Total Months",
                                 content=f"{len(monthly_costs)}"
                             )
@@ -1315,25 +1310,25 @@ def main():
                         col9, col10, col11, col12 = st.columns(4)
                         
                         with col9:
-                            ui.metric_card(
+                            st.metric(
                                 title="Highest Weekly Avg per Commuter",
                                 content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].max():,.2f}"
                             )
                         
                         with col10:
-                            ui.metric_card(
+                            st.metric(
                                 title="Lowest Weekly Avg per Commuter",
                                 content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].min():,.2f}"
                             )
                         
                         with col11:
-                            ui.metric_card(
+                            st.metric(
                                 title="Overall Weekly Avg per Commuter",
                                 content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].mean():,.2f}"
                             )
                         
                         with col12:
-                            ui.metric_card(
+                            st.metric(
                                 title="Total Weeks",
                                 content=f"{len(weekly_costs)}"
                             )

@@ -70,7 +70,7 @@ def show_home_page():
     
     This dashboard provides comprehensive insights into your survey data from Snowflake.
     
-    ### 📊 Available Pages:
+    ### 📊Currently Available Pages:
     
     #### 👥 **Demographics Dashboard**
     - **Gender Distribution**: Interactive pie charts with filtering
@@ -84,13 +84,7 @@ def show_home_page():
     - **Trip Cost Analysis**: Travel spending patterns and cost distributions
     - **Money Source Analysis**: Main income sources and side hustles
     - **Commuter Spending**: Monthly and weekly spending analysis
-    
-    ### 🔍 **Key Features:**
-    - **Interactive Filters**: Age, Gender, and SEM segment filtering
-    - **Real-time Data**: Direct connection to Snowflake database
-    - **Responsive Design**: Optimized for different screen sizes
-    - **Export Capabilities**: Download data as CSV or JSON
-    
+       
     ### 🚀 **Getting Started:**
     1. **Choose a page** from the sidebar navigation
     2. **Apply filters** to focus on specific demographics
@@ -101,12 +95,6 @@ def show_home_page():
     - **Database**: Snowflake
     - **Table**: `SURVEYS_DB.RAW.NEW_DASBOARD_DATA1`
     - **Real-time**: Live connection to your data warehouse
-    
-    ### 💡 **Tips:**
-    - Use the **SEM segment filters** to analyze different customer tiers
-    - **Combine filters** for detailed demographic analysis
-    - **Export data** to create custom reports
-    - **Switch between pages** to explore different aspects of your data
     """)
     
     # Add some styling
@@ -135,33 +123,33 @@ def show_home_page():
     """, unsafe_allow_html=True)
     
     # Add some key metrics on the home page
-    st.markdown("### 📊 Quick Stats")
+    # st.markdown("### 📊 Quick Stats")
     
-    col1, col2, col3 = st.columns(3)
+    # col1, col2, col3 = st.columns(3)
     
-    with col1:
-        st.markdown("""
-        <div class="metric-card">
-            <h4>👥 Demographics</h4>
-            <p>Gender, Age, Employment, Location, and SEM analysis with interactive filtering</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # with col1:
+    #     st.markdown("""
+    #     <div class="metric-card">
+    #         <h4>👥 Demographics</h4>
+    #         <p>Gender, Age, Employment, Location, and SEM analysis with interactive filtering</p>
+    #     </div>
+    #     """, unsafe_allow_html=True)
     
-    with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <h4>📋 Survey Questions</h4>
-            <p>Shop visits, trip costs, money sources, and spending patterns analysis</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # with col2:
+    #     st.markdown("""
+    #     <div class="metric-card">
+    #         <h4>📋 Survey Questions</h4>
+    #         <p>Shop visits, trip costs, money sources, and spending patterns analysis</p>
+    #     </div>
+    #     """, unsafe_allow_html=True)
     
-    with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <h4>🔍 Advanced Filters</h4>
-            <p>Age, Gender, and SEM segment filtering for detailed demographic analysis</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # with col3:
+    #     st.markdown("""
+    #     <div class="metric-card">
+    #         <h4>🔍 Advanced Filters</h4>
+    #         <p>Age, Gender, and SEM segment filtering for detailed demographic analysis</p>
+    #     </div>
+    #     """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from database import get_database
-import streamlit_shadcn_ui as ui
 from streamlit_extras.stylable_container import stylable_container
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
@@ -97,7 +96,7 @@ def main():
     survey_ids, responses, analytics, score_dist = get_real_data()
     
     if survey_ids and not responses.empty:
-        st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
+        # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
         
         # Helper function to create filters for a specific section
         def create_section_filters(section_name, data, include_gender=True, include_age=True):
@@ -182,18 +181,18 @@ def main():
         
         with col1:
             total_responses = len(responses)
-            ui.metric_card(title="Total Responses", content=f"{total_responses:,}")
+            st.metric("Total Responses", f"{total_responses:,}")
         
         with col2:
             unique_respondents = responses['PROFILEUUID'].nunique() if 'PROFILEUUID' in responses.columns else total_responses
-            ui.metric_card(title="Unique Responses", content=f"{unique_respondents:,}")
+            st.metric("Unique Responses", f"{unique_respondents:,}")
         
         with col3:
             if not analytics.empty:
                 avg_score = analytics.iloc[0, 2]  # avg_sem_score column
-                ui.metric_card(title="Average SEM Score", content=f"{avg_score:.1f}")
+                st.metric("Average SEM Score", f"{avg_score:.1f}")
             else:
-                ui.metric_card(title="Average SEM Score", content="NA")
+                st.metric("Average SEM Score", "NA")
         
         # Charts
         col1, col2 = st.columns(2)

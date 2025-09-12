@@ -1,0 +1,7 @@
+# Full requirements for complete dashboard
+streamlit>=1.49.1
+pandas>=2.3.2
+plotly>=6.3.0
+google-cloud-bigquery>=3.11.0
+streamlit-aggrid>=0.3.4
+streamlit-authenticator>=0.2.3

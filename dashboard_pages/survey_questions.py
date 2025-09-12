@@ -4,20 +4,20 @@ Survey Questions Dashboard Page
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from database import get_database
-from streamlit_extras.stylable_container import stylable_container
+from bigquery_database import get_database
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def get_real_data():
-    """Get real data from your Snowflake table"""
+    """Get real data from your BigQuery table"""
     db = get_database()
     if not db:
         return None, None, None, None
     
     try:
         # Get all survey data (no survey ID filter)
-        responses = db.execute_query("""
+        responses = db.execute_query(f"""
             SELECT 
                 SURVEY_ID,
                 SURVEY_TITLE,
@@ -28,11 +28,11 @@ def get_real_data():
                 AGE_GROUP as AGEGROUP,
                 EMPLOYMENT as "Emloyment Status",
                 LOCATION,
-                "salary per month",
+                `salary per month`,
                 SEM_SEGMENT,
-                "Side Hustles",
+                `Side Hustles`,
                 CREATED_DATE as CREATED_AT
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL
         """)
         
@@ -40,27 +40,27 @@ def get_real_data():
             return None, None, None, None
         
         # Get available survey IDs for display
-        surveys = db.execute_query("SELECT DISTINCT SURVEY_ID FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1 WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
+        surveys = db.execute_query(f"SELECT DISTINCT SURVEY_ID FROM `{db.project_id}.{db.dataset_id}.{db.table_id}` WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
         survey_ids = surveys['SURVEY_ID'].tolist()
         
         # Get basic analytics for all data
-        analytics = db.execute_query("""
+        analytics = db.execute_query(f"""
             SELECT 
                 COUNT(*) as total_responses,
                 COUNT(DISTINCT PROFILEUUID) as unique_respondents,
                 AVG(SEM_SCORE) as avg_sem_score,
                 MIN(SEM_SCORE) as min_sem_score,
                 MAX(SEM_SCORE) as max_sem_score
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL
         """)
         
         # Get SEM score distribution for all data
-        score_dist = db.execute_query("""
+        score_dist = db.execute_query(f"""
             SELECT 
                 SEM_SCORE,
                 COUNT(*) as count
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL AND SEM_SCORE IS NOT NULL
             GROUP BY SEM_SCORE
             ORDER BY SEM_SCORE
@@ -194,17 +194,7 @@ def main():
                 st.info(f"🔍 No exact match for shop question. Similar questions found: {similar_questions}")
         
         if not shop_responses.empty:
-            with stylable_container(
-                key="shop_container",
-                css_styles="""
-                {
-                    border: 1px solid rgba(49, 51, 63, 0.2);
-                    border-radius: 0.5rem;
-                    padding: calc(1em - 1px);
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-                """,
-            ):
+            with st.container():
                 st.markdown("#### Shop Visitation Analysis")
                 
                 # Add filters for this section
@@ -304,17 +294,7 @@ def main():
                 st.info(f"🔍 No exact match for trip cost question. Similar questions found: {similar_questions}")
         
         if not travel_responses.empty:
-            with stylable_container(
-                key="travel_container",
-                css_styles="""
-                {
-                    border: 1px solid rgba(49, 51, 63, 0.2);
-                    border-radius: 0.5rem;
-                    padding: calc(1em - 1px);
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-                """,
-            ):
+            with st.container():
                 st.markdown("#### Trip Cost Analysis")
                 
                 # Add filters for this section
@@ -530,17 +510,7 @@ def main():
                 st.info(f"🔍 No exact match for money source question. Similar questions found: {similar_questions}")
         
         if not money_responses.empty:
-            with stylable_container(
-                key="money_source_container",
-                css_styles="""
-                {
-                    border: 1px solid rgba(49, 51, 63, 0.2);
-                    border-radius: 0.5rem;
-                    padding: calc(1em - 1px);
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-                """,
-            ):
+            with st.container():
                 st.markdown("#### Main Source of Money Analysis")
                 
                 # Add filters for this section
@@ -780,17 +750,7 @@ def main():
             else:
                 weekly_costs = pd.DataFrame()
             if not monthly_costs.empty or not weekly_costs.empty:
-                with stylable_container(
-                    key="monthly_travel_container",
-                    css_styles="""
-                    {
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        border-radius: 0.5rem;
-                        padding: calc(1em - 1px);
-                        background-color: rgba(255, 255, 255, 0.05);
-                    }
-                    """,
-                ):
+                with st.container():
                     st.markdown("#### Commuter Spending Analysis")
                     
                     # Add filters for this section
@@ -949,7 +909,7 @@ def main():
         
     else:
         st.warning("⚠️ No data found or connection failed")
-        st.info("The dashboard is working but couldn't retrieve data from your Snowflake table.")
+        st.info("The dashboard is working but couldn't retrieve data from your BigQuery table.")
 
 if __name__ == "__main__":
     main()

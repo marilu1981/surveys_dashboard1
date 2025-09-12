@@ -1,3 +1,4 @@
+
 import streamlit as st
 import sys
 import os
@@ -8,6 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'dashboard_pages'))
 # Import the page functions
 from demographics import main as demographics_main
 from survey_questions import main as survey_questions_main
+# from auth_config import get_authenticator
 
 # Page configuration
 st.set_page_config(
@@ -24,12 +26,53 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def main():
+    # Temporarily disable authentication for deployment testing
+    # try:
+    #     # Authentication
+    #     authenticator = get_authenticator()
+    #     
+    #     # Check if user is authenticated
+    #     if 'authentication_status' not in st.session_state:
+    #         st.session_state.authentication_status = None
+    #     
+    #     # Show login form if not authenticated
+    #     if st.session_state.authentication_status != True:
+    #         st.title("🔐 Surveys Dashboard Login")
+    #         st.markdown("Please log in to access the dashboard")
+    #         
+    #         name, authentication_status, username = authenticator.login('Login', 'main')
+    #         
+    #         if authentication_status == False:
+    #             st.error('Username/password is incorrect')
+    #         elif authentication_status == None:
+    #             st.warning('Please enter your username and password')
+    #         else:
+    #             st.session_state.authentication_status = True
+    #             st.session_state.name = name
+    #             st.session_state.username = username
+    #             st.rerun()
+    #         
+    #         return
+    # except Exception as e:
+    #     st.error(f"Authentication error: {str(e)}")
+    #     st.info("Please check your authentication configuration")
+    #     return
+    
+    # User is authenticated, show the dashboard
+    # st.sidebar.write(f'Welcome *{st.session_state.name}*')
+    
+    # Add logout button
+    # if st.sidebar.button('Logout'):
+    #     authenticator.logout('Logout', 'sidebar')
+    #     st.session_state.authentication_status = False
+    #     st.rerun()
+    
     # Initialize session state for navigation
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'home'
     
     # Sidebar navigation
-    st.sidebar.title("📊 Navigation")
+    st.sidebar.title("Navigation")
     st.sidebar.markdown("---")
     
     # Add navigation buttons
@@ -92,9 +135,9 @@ def show_home_page():
     4. **Export data** for further analysis
     
     ### 📈 **Data Source:**
-    - **Database**: Snowflake
-    - **Table**: `SURVEYS_DB.RAW.NEW_DASBOARD_DATA1`
-    - **Real-time**: Live connection to your data warehouse
+    - **Database**: Google Cloud BigQuery
+    - **Table**: `surveys_db.new_dashboard_data1`
+    - **Real-time**: Live connection to your data warehouse with caching
     """)
     
     # Add some styling

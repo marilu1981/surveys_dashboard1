@@ -9,9 +9,18 @@ dependencies = [
     "pandas>=2.3.2",
     "plotly>=6.3.0",
     "streamlit>=1.49.1",
-    "streamlit-extras>=0.3.0",
     "snowflake-connector-python>=3.0.0",
     "snowflake-sqlalchemy>=1.4.0",
     "sqlalchemy>=2.0.0",
     "python-dotenv>=1.0.0",
+    "textual>=6.1.0",
+    "pyjokes>=0.8.3",
+    "duckdb>=1.3.2",
+    "google-cloud-bigquery>=3.37.0",
+    "google-cloud-bigquery-storage>=2.33.1",
+    "streamlit-aggrid>=1.1.8.post1",
+    "streamlit-authenticator>=0.4.2",
 ]
+
+[tool.uv.workspace]
+members = ["surveys_dash_app"]

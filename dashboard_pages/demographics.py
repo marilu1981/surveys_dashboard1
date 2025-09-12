@@ -4,20 +4,21 @@ Demographics Dashboard Page
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from database import get_database
-from streamlit_extras.stylable_container import stylable_container
+from bigquery_database import get_database
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def get_real_data():
-    """Get real data from your Snowflake table"""
+    """Get real data from your BigQuery table"""
     db = get_database()
     if not db:
+        st.warning("⚠️ BigQuery connection not available - using sample data")
         return None, None, None, None
     
     try:
         # Get all survey data (no survey ID filter)
-        responses = db.execute_query("""
+        responses = db.execute_query(f"""
             SELECT 
                 SURVEY_ID,
                 SURVEY_TITLE,
@@ -28,11 +29,11 @@ def get_real_data():
                 AGE_GROUP as AGEGROUP,
                 EMPLOYMENT as "Emloyment Status",
                 LOCATION,
-                "salary per month",
+                `salary per month`,
                 SEM_SEGMENT,
-                "Side Hustles",
+                `Side Hustles`,
                 CREATED_DATE as CREATED_AT
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL
         """)
         
@@ -40,27 +41,27 @@ def get_real_data():
             return None, None, None, None
         
         # Get available survey IDs for display
-        surveys = db.execute_query("SELECT DISTINCT SURVEY_ID FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1 WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
+        surveys = db.execute_query(f"SELECT DISTINCT SURVEY_ID FROM `{db.project_id}.{db.dataset_id}.{db.table_id}` WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
         survey_ids = surveys['SURVEY_ID'].tolist()
         
         # Get basic analytics for all data
-        analytics = db.execute_query("""
+        analytics = db.execute_query(f"""
             SELECT 
                 COUNT(*) as total_responses,
                 COUNT(DISTINCT PROFILEUUID) as unique_respondents,
                 AVG(SEM_SCORE) as avg_sem_score,
                 MIN(SEM_SCORE) as min_sem_score,
                 MAX(SEM_SCORE) as max_sem_score
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL
         """)
         
         # Get SEM score distribution for all data
-        score_dist = db.execute_query("""
+        score_dist = db.execute_query(f"""
             SELECT 
                 SEM_SCORE,
                 COUNT(*) as count
-            FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1
+            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
             WHERE SURVEY_ID IS NOT NULL AND SEM_SCORE IS NOT NULL
             GROUP BY SEM_SCORE
             ORDER BY SEM_SCORE
@@ -199,17 +200,7 @@ def main():
         
         with col1:
             if 'GENDER' in responses.columns:
-                with stylable_container(
-                    key="gender_container",
-                    css_styles="""
-                    {
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        border-radius: 0.5rem;
-                        padding: calc(1em - 1px);
-                        background-color: rgba(255, 255, 255, 0.05);
-                    }
-                    """,
-                ):
+                with st.container():
                     st.markdown("#### Gender Distribution")
                     
                     # Add filters for this section (exclude gender filter since this IS the gender chart)
@@ -226,17 +217,7 @@ def main():
         
         with col2:
             if 'AGEGROUP' in responses.columns:
-                with stylable_container(
-                    key="age_container",
-                    css_styles="""
-                    {
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        border-radius: 0.5rem;
-                        padding: calc(1em - 1px);
-                        background-color: rgba(255, 255, 255, 0.05);
-                    }
-                    """,
-                ):
+                with st.container():
                     st.markdown("#### Age Group Distribution")
                     
                     # Add filters for this section (exclude age filter since this IS the age chart)
@@ -260,17 +241,7 @@ def main():
         
         with col3:
             if 'Emloyment Status' in responses.columns:
-                with stylable_container(
-                    key="employment_container",
-                    css_styles="""
-                    {
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        border-radius: 0.5rem;
-                        padding: calc(1em - 1px);
-                        background-color: rgba(255, 255, 255, 0.05);
-                    }
-                    """,
-                ):
+                with st.container():
                     st.markdown("#### Employment Status")
                     
                     # Add filters for this section
@@ -289,17 +260,7 @@ def main():
         with col4:
             # Location Analysis
             if 'LOCATION' in responses.columns:
-                with stylable_container(
-                    key="location_container",
-                    css_styles="""
-                    {
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        border-radius: 0.5rem;
-                        padding: calc(1em - 1px);
-                        background-color: rgba(255, 255, 255, 0.05);
-                    }
-                    """,
-                ):
+                with st.container():
                     st.markdown("#### Location Distribution")
                     
                     # Add filters for this section
@@ -393,17 +354,7 @@ def main():
         
         # SEM Groups Analysis
         if 'SEM_SEGMENT' in responses.columns:
-            with stylable_container(
-                key="sem_container",
-                css_styles="""
-                {
-                    border: 1px solid rgba(49, 51, 63, 0.2);
-                    border-radius: 0.5rem;
-                    padding: calc(1em - 1px);
-                    background-color: rgba(255, 255, 255, 0.05);
-                }
-                """,
-            ):
+            with st.container():
                 st.markdown("#### SEM Groups Distribution")
                 
                 # Add filters for this section
@@ -483,50 +434,21 @@ def main():
                     'Percentage': (sem_groups.values / sem_groups.sum() * 100).round(2)
                 })
                 
-                # Add percentage column with % symbol
-                sem_breakdown['Percentage'] = sem_breakdown['Percentage'].astype(str) + '%'
+                # Configure AgGrid
+                gb = GridOptionsBuilder.from_dataframe(sem_breakdown)
+                gb.configure_pagination(paginationAutoPageSize=True)
+                gb.configure_side_bar()
+                gb.configure_default_column(groupable=True, value=True, enableRowGroup=True, aggFunc='sum', editable=True)
+                gb.configure_column('Count', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=0)
+                gb.configure_column('Percentage', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=2)
+                gridOptions = gb.build()
                 
-                # Style the dataframe
-                styled_df = sem_breakdown.style.format({
-                    'Count': '{:,}',  # Add commas to numbers
-                }).set_properties(**{
-                    'text-align': 'center',
-                    'font-size': '14px',
-                    'padding': '10px'
-                }).set_table_styles([
-                    {
-                        'selector': 'thead th',
-                        'props': [
-                            ('background-color', '#667eea'),
-                            ('color', 'white'),
-                            ('font-weight', 'bold'),
-                            ('text-align', 'center'),
-                            ('padding', '12px'),
-                            ('border', '1px solid #ddd')
-                        ]
-                    },
-                    {
-                        'selector': 'tbody tr:nth-child(even)',
-                        'props': [('background-color', '#f8f9fa')]
-                    },
-                    {
-                        'selector': 'tbody tr:hover',
-                        'props': [('background-color', '#e3f2fd')]
-                    },
-                    {
-                        'selector': 'td',
-                        'props': [
-                            ('border', '1px solid #ddd'),
-                            ('padding', '8px')
-                        ]
-                    }
-                ])
-                
-                st.write(styled_df.to_html(), unsafe_allow_html=True)
+                # Display AgGrid
+                AgGrid(sem_breakdown, gridOptions=gridOptions, enable_enterprise_modules=True, height=400)
         
     else:
         st.warning("⚠️ No data found or connection failed")
-        st.info("The dashboard is working but couldn't retrieve data from your Snowflake table.")
+        st.info("The dashboard is working but couldn't retrieve data from your BigQuery table.")
 
 if __name__ == "__main__":
     main()

@@ -271,26 +271,34 @@ class BackendClient:
 # Global backend client
 @st.cache_resource
 def get_backend_client():
-    """Get cached backend client"""
-    # Get configuration from secrets
-    if 'backend' not in st.secrets:
-        st.warning("⚠️ Backend configuration not found in secrets.toml")
-        return None
-    
-    config = st.secrets['backend']
-    base_url = config.get('base_url')
-    api_key = config.get('api_key')
-    
-    if not base_url:
-        st.error("❌ Backend base_url not configured")
-        return None
-    
-    client = BackendClient(base_url, api_key)
-    
-    # Test connection
-    if client.test_connection():
-        st.success("✅ Backend connection successful")
-        return client
-    else:
-        st.error("❌ Backend connection failed")
+    """Get cached backend client with fallback configuration"""
+    try:
+        # Try to get configuration from secrets first
+        if 'backend' in st.secrets:
+            config = st.secrets['backend']
+            base_url = config.get('base_url')
+            api_key = config.get('api_key')
+            st.info("✅ Using secrets configuration")
+        else:
+            # Fallback to hardcoded values for deployment
+            st.warning("⚠️ Using fallback backend configuration")
+            base_url = "https://ansebmrsurveysv1.oa.r.appspot.com"
+            api_key = ""
+        
+        if not base_url:
+            st.error("❌ Backend base_url not configured")
+            return None
+        
+        client = BackendClient(base_url, api_key)
+        
+        # Test connection
+        if client.test_connection():
+            st.success("✅ Backend connection successful")
+            return client
+        else:
+            st.error("❌ Backend connection failed")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error creating backend client: {str(e)}")
         return None

@@ -1,0 +1,26 @@
+[global]
+developmentMode = false
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base="dark"
+primaryColor="#34d399"
+backgroundColor="#0b1220"
+secondaryBackgroundColor="#111827"
+textColor="#e5e7eb"
+font="sans serif
+
+[runner]
+fastReruns = true
+
+[client]
+showErrorDetails = false
+
+

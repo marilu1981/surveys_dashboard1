@@ -6,6 +6,16 @@ import pandas as pd
 import plotly.express as px
 from backend_client import get_backend_client
 from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
+import sys
+import os
+
+# Add the parent directory to the path to import our modules
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from altair import create_altair_chart
+
+# Add the styles directory to the path
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
+from card_style import apply_card_styles
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
@@ -71,6 +81,9 @@ def get_real_data():
 def main():
     st.title("📊 Demographics Dashboard")
     st.markdown("---")
+    
+    # Apply card styles
+    apply_card_styles()
     
     # Only show sidebar navigation if not called from main app
     if 'current_page' not in st.session_state:
@@ -201,6 +214,36 @@ def main():
                     st.metric("Date Range", "No Data")
             else:
                 st.metric("Date Range", "No Data")
+        
+        # Add Altair chart example
+        st.markdown("### 📈 Response Trends (Altair Chart)")
+        
+        # Create sample trend data based on actual timestamps if available
+        if 'ts' in responses.columns:
+            dates = pd.to_datetime(responses['ts'], errors='coerce').dropna()
+            if not dates.empty:
+                # Create daily response counts
+                daily_counts = dates.dt.date.value_counts().sort_index()
+                trend_data = pd.DataFrame({
+                    'date': daily_counts.index,
+                    'responses': daily_counts.values
+                })
+                
+                # Create Altair chart
+                altair_chart = create_altair_chart(
+                    trend_data, 
+                    'line', 
+                    'date', 
+                    'responses', 
+                    'Daily Response Trends',
+                    width=800,
+                    height=300
+                )
+                st.altair_chart(altair_chart, use_container_width=True)
+            else:
+                st.info("No valid date data available for trend analysis")
+        else:
+            st.info("No timestamp data available for trend analysis")
         
         # Variable Summary
         st.markdown("### 📋 Variable Summary")

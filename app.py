@@ -6,6 +6,13 @@ import os
 # Add the dashboard_pages directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'dashboard_pages'))
 
+# Add the styles directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'styles'))
+
+# Import our new modules
+from card_style import apply_card_styles, create_metric_card
+from dashboard import create_metrics_dashboard
+
 # Import the page functions (lazy loading to prevent startup crashes)
 # from demographics import main as demographics_main
 # from survey_questions import main as survey_questions_main
@@ -124,6 +131,48 @@ def show_home_page():
     st.title("📊 Sebenza Surveys Dashboard")
     st.markdown("---")
     
+    # Apply card styles
+    apply_card_styles()
+    
+    # Add key metrics dashboard
+    st.markdown("### 📊 Dashboard Overview")
+    
+    # Try to get real metrics from backend, fallback to sample data
+    try:
+        from backend_client import get_backend_client
+        client = get_backend_client()
+        if client:
+            responses = client.get_responses()
+            if not responses.empty:
+                # Calculate real metrics
+                total_responses = len(responses)
+                unique_users = responses['pid'].nunique() if 'pid' in responses.columns else 0
+                date_range = "Live Data"
+                
+                metrics_data = [
+                    {"title": "Total Responses", "value": f"{total_responses:,}"},
+                    {"title": "Unique Users", "value": f"{unique_users:,}"},
+                    {"title": "Data Status", "value": date_range}
+                ]
+            else:
+                metrics_data = [
+                    {"title": "Total Responses", "value": "0"},
+                    {"title": "Unique Users", "value": "0"},
+                    {"title": "Data Status", "value": "No Data"}
+                ]
+        else:
+            raise Exception("No backend connection")
+    except:
+        # Fallback to sample metrics
+        metrics_data = [
+            {"title": "Total Responses", "value": "144k"},
+            {"title": "Unique Users", "value": "325k"},
+            {"title": "Data Status", "value": "Sample Data"}
+        ]
+    
+    # Create metrics dashboard
+    create_metrics_dashboard(metrics_data)
+    
     st.markdown("""
     ## Welcome to the Sebenza Surveys Dashboard!
     
@@ -156,59 +205,31 @@ def show_home_page():
     - **Real-time**: Live connection to your data warehouse with caching
     """)
     
-    # Add some styling
-    st.markdown("""
-    <style>
-    .main-header {
-        text-align: center;
-        color: #1f77b4;
-        margin-bottom: 2rem;
-    }
-    .feature-box {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #1f77b4;
-    }
-    .metric-card {
-        background-color: #ffffff;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin: 0.5rem 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Add feature cards with new styling
+    st.markdown("### 🎯 Key Features")
     
-    # Add some key metrics on the home page
-    # st.markdown("### 📊 Quick Stats")
+    col1, col2, col3 = st.columns(3)
     
-    # col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(create_metric_card(
+            "👥 Demographics", 
+            "Advanced Analysis", 
+            "Gender, Age, Employment, Location, and SEM analysis with interactive filtering"
+        ), unsafe_allow_html=True)
     
-    # with col1:
-    #     st.markdown("""
-    #     <div class="metric-card">
-    #         <h4>👥 Demographics</h4>
-    #         <p>Gender, Age, Employment, Location, and SEM analysis with interactive filtering</p>
-    #     </div>
-    #     """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(create_metric_card(
+            "📋 Survey Questions", 
+            "Comprehensive", 
+            "Shop visits, trip costs, money sources, and spending patterns analysis"
+        ), unsafe_allow_html=True)
     
-    # with col2:
-    #     st.markdown("""
-    #     <div class="metric-card">
-    #         <h4>📋 Survey Questions</h4>
-    #         <p>Shop visits, trip costs, money sources, and spending patterns analysis</p>
-    #     </div>
-    #     """, unsafe_allow_html=True)
-    
-    # with col3:
-    #     st.markdown("""
-    #     <div class="metric-card">
-    #         <h4>🔍 Advanced Filters</h4>
-    #         <p>Age, Gender, and SEM segment filtering for detailed demographic analysis</p>
-    #     </div>
-    #     """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(create_metric_card(
+            "🔍 Advanced Filters", 
+            "Multi-dimensional", 
+            "Age, Gender, and SEM segment filtering for detailed demographic analysis"
+        ), unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

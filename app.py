@@ -6,9 +6,9 @@ import os
 # Add the dashboard_pages directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'dashboard_pages'))
 
-# Import the page functions
-from demographics import main as demographics_main
-from survey_questions import main as survey_questions_main
+# Import the page functions (lazy loading to prevent startup crashes)
+# from demographics import main as demographics_main
+# from survey_questions import main as survey_questions_main
 # from auth_config import get_authenticator
 
 # Page configuration
@@ -97,12 +97,28 @@ def main():
         show_survey_questions_page()
 
 def show_demographics_page():
-    # Call the demographics main function but skip its sidebar navigation
-    demographics_main()
+    st.title("📊 Demographics Dashboard")
+    st.info("🔧 Demographics page - will be enabled step by step")
+    
+    # Lazy import to prevent startup crashes
+    try:
+        from demographics import main as demographics_main
+        demographics_main()
+    except ImportError as e:
+        st.error(f"Demographics module not available: {e}")
+        st.info("This will be fixed in the next deployment")
 
 def show_survey_questions_page():
-    # Call the survey questions main function but skip its sidebar navigation
-    survey_questions_main()
+    st.title("📋 Survey Questions Dashboard")
+    st.info("🔧 Survey questions page - will be enabled step by step")
+    
+    # Lazy import to prevent startup crashes
+    try:
+        from survey_questions import main as survey_questions_main
+        survey_questions_main()
+    except ImportError as e:
+        st.error(f"Survey questions module not available: {e}")
+        st.info("This will be fixed in the next deployment")
 
 def show_home_page():
     st.title("📊 Sebenza Surveys Dashboard")

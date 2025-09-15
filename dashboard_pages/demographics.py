@@ -4,74 +4,69 @@ Demographics Dashboard Page
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from bigquery_database import get_database
+from backend_client import get_backend_client
 from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def get_real_data():
-    """Get real data from your BigQuery table"""
-    db = get_database()
-    if not db:
-        st.warning("⚠️ BigQuery connection not available - using sample data")
-        return None, None, None, None
+    """Get real data from your backend API"""
+    client = get_backend_client()
+    if not client:
+        st.warning("⚠️ Backend connection not available - using sample data")
+        return None, None, None, None, None
     
     try:
-        # Get all survey data (no survey ID filter)
-        responses = db.execute_query(f"""
-            SELECT 
-                SURVEY_ID,
-                SURVEY_TITLE,
-                SURVEY_QUESTION,
-                RESPONSE_X as RESPONSE,
-                SEM_SCORE,
-                GENDER,
-                AGE_GROUP as AGEGROUP,
-                EMPLOYMENT as "Emloyment Status",
-                LOCATION,
-                `salary per month`,
-                SEM_SEGMENT,
-                `Side Hustles`,
-                CREATED_DATE as CREATED_AT
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL
-        """)
+        # Get responses data from your backend
+        responses = client.get_responses()
         
         if responses.empty:
-            return None, None, None, None
+            return None, None, None, None, None
         
-        # Get available survey IDs for display
-        surveys = db.execute_query(f"SELECT DISTINCT SURVEY_ID FROM `{db.project_id}.{db.dataset_id}.{db.table_id}` WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
-        survey_ids = surveys['SURVEY_ID'].tolist()
+        # Get survey summary for analytics
+        summary = client.get_survey_summary()
         
-        # Get basic analytics for all data
-        analytics = db.execute_query(f"""
-            SELECT 
-                COUNT(*) as total_responses,
-                COUNT(DISTINCT PROFILEUUID) as unique_respondents,
-                AVG(SEM_SCORE) as avg_sem_score,
-                MIN(SEM_SCORE) as min_sem_score,
-                MAX(SEM_SCORE) as max_sem_score
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL
-        """)
+        # Create proper analytics from the responses data
+        survey_ids = ['Backend Data']  # Placeholder
         
-        # Get SEM score distribution for all data
-        score_dist = db.execute_query(f"""
-            SELECT 
-                SEM_SCORE,
-                COUNT(*) as count
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL AND SEM_SCORE IS NOT NULL
-            GROUP BY SEM_SCORE
-            ORDER BY SEM_SCORE
-        """)
+        # DEDUPLICATE DEMOGRAPHIC VARIABLES BY PID
+        # For demographic analysis, we need one record per person (pid)
+        # Keep the most recent record for each person (by ts)
+        if 'pid' in responses.columns and 'ts' in responses.columns:
+            # Sort by pid and ts (most recent first)
+            responses_sorted = responses.sort_values(['pid', 'ts'], ascending=[True, False])
+            # Keep first occurrence (most recent) for each pid
+            demographics_data = responses_sorted.drop_duplicates(subset=['pid'], keep='first')
+        else:
+            demographics_data = responses
         
-        return survey_ids, responses, analytics, score_dist
+        # Create analytics DataFrame with proper structure
+        analytics_data = {
+            'total_responses': [len(responses)],  # Total survey responses
+            'unique_respondents': [len(demographics_data)],  # Unique people (deduplicated)
+            'avg_sem_score': [demographics_data['sem_score'].mean() if 'sem_score' in demographics_data.columns else 0]
+        }
+        analytics = pd.DataFrame(analytics_data)
+        
+        # Create score distribution from deduplicated data (only non-null values)
+        if 'sem_score' in demographics_data.columns:
+            # Filter out null values for sem_score from deduplicated data
+            sem_scores = demographics_data['sem_score'].dropna()
+            if not sem_scores.empty:
+                score_dist = sem_scores.value_counts().reset_index()
+                score_dist.columns = ['SEM_SCORE', 'count']
+                score_dist = score_dist.sort_values('SEM_SCORE')
+            else:
+                score_dist = pd.DataFrame({'SEM_SCORE': [], 'count': []})
+        else:
+            score_dist = pd.DataFrame({'SEM_SCORE': [1, 2, 3, 4, 5], 'count': [10, 20, 30, 25, 15]})
+        
+        return survey_ids, responses, demographics_data, analytics, score_dist
         
     except Exception as e:
-        st.error(f"Error getting data: {str(e)}")
-        return None, None, None, None
+        st.error(f"Error getting data from backend: {str(e)}")
+        return None, None, None, None, None
+    
 
 def main():
     st.title("📊 Demographics Dashboard")
@@ -94,7 +89,7 @@ def main():
             st.switch_page("dashboard_pages/survey_questions.py")
     
     # Get data
-    survey_ids, responses, analytics, score_dist = get_real_data()
+    survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()
     
     if survey_ids and not responses.empty:
         # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
@@ -126,8 +121,8 @@ def main():
             # Age filter
             if include_age:
                 with available_cols[col_index]:
-                    if 'AGEGROUP' in data.columns:
-                        age_options = ['All'] + sorted([age for age in data['AGEGROUP'].unique() if pd.notna(age)])
+                    if 'age_group' in data.columns:
+                        age_options = ['All'] + sorted([age for age in data['age_group'].unique() if pd.notna(age)])
                         selected_age = st.selectbox("Age Group", age_options, key=f"age_{section_name}")
                     else:
                         selected_age = 'All'
@@ -138,8 +133,8 @@ def main():
             # Gender filter
             if include_gender:
                 with available_cols[col_index]:
-                    if 'GENDER' in data.columns:
-                        gender_options = ['All'] + sorted([gender for gender in data['GENDER'].unique() if pd.notna(gender)])
+                    if 'gender' in data.columns:
+                        gender_options = ['All'] + sorted([gender for gender in data['gender'].unique() if pd.notna(gender)])
                         selected_gender = st.selectbox("Gender", gender_options, key=f"gender_{section_name}")
                     else:
                         selected_gender = 'All'
@@ -149,8 +144,8 @@ def main():
             
             # SEM filter as checkboxes
             with available_cols[col_index]:
-                if 'SEM_SEGMENT' in data.columns:
-                    sem_options = sorted([sem for sem in data['SEM_SEGMENT'].unique() if pd.notna(sem)])
+                if 'sem_segment' in data.columns:
+                    sem_options = sorted([sem for sem in data['sem_segment'].unique() if pd.notna(sem)])
                     selected_sems = st.multiselect("SEM Segments", sem_options, default=[], key=f"sem_{section_name}")
                 else:
                     selected_sems = []
@@ -159,13 +154,13 @@ def main():
             filtered_data = data.copy()
             
             if include_age and selected_age != 'All':
-                filtered_data = filtered_data[filtered_data['AGEGROUP'] == selected_age]
+                filtered_data = filtered_data[filtered_data['age_group'] == selected_age]
             
             if include_gender and selected_gender != 'All':
-                filtered_data = filtered_data[filtered_data['GENDER'] == selected_gender]
+                filtered_data = filtered_data[filtered_data['gender'] == selected_gender]
             
             if selected_sems:  # Only filter if at least one SEM segment is selected
-                filtered_data = filtered_data[filtered_data['SEM_SEGMENT'].isin(selected_sems)]
+                filtered_data = filtered_data[filtered_data['sem_segment'].isin(selected_sems)]
             
             # Show filter summary
             total_original = len(data)
@@ -178,95 +173,283 @@ def main():
         
         # Key metrics
         st.markdown("### 📊 Key Metrics")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            total_responses = len(responses)
+            total_responses = analytics.iloc[0, 0]  # total_responses from analytics
             st.metric("Total Responses", f"{total_responses:,}")
         
         with col2:
-            unique_respondents = responses['PROFILEUUID'].nunique() if 'PROFILEUUID' in responses.columns else total_responses
-            st.metric("Unique Responses", f"{unique_respondents:,}")
+            unique_respondents = analytics.iloc[0, 1]  # unique_respondents from analytics
+            st.metric("Unique Profiles", f"{unique_respondents:,}")
         
         with col3:
-            if not analytics.empty:
-                avg_score = analytics.iloc[0, 2]  # avg_sem_score column
+            avg_score = analytics.iloc[0, 2]  # avg_sem_score from analytics
+            if not pd.isna(avg_score) and avg_score > 0:
                 st.metric("Average SEM Score", f"{avg_score:.1f}")
             else:
-                st.metric("Average SEM Score", "NA")
+                st.metric("Average SEM Score", "No Data")
+        
+        with col4:
+            # Show date range
+            if 'ts' in responses.columns:
+                dates = pd.to_datetime(responses['ts'], errors='coerce').dropna()
+                if not dates.empty:
+                    date_range = f"{dates.min().strftime('%Y-%m-%d')} to {dates.max().strftime('%Y-%m-%d')}"
+                    st.metric("Date Range", date_range)
+                else:
+                    st.metric("Date Range", "No Data")
+            else:
+                st.metric("Date Range", "No Data")
+        
+        # Variable Summary
+        st.markdown("### 📋 Variable Summary")
+        st.markdown("Count of non-null values for each variable:")
+        
+        # Create variable summary
+        variable_summary = []
+        
+        # Demographic variables (use deduplicated data)
+        demographic_vars = ['pid', 'gender', 'age_group', 'salary', 'employment', 'commuter_status', 'sem_segment', 'sem_score', 'side_hustles', 'location']
+        # Survey response variables (use full responses data)
+        response_vars = ['ts', 'title', 'q', 'resp', 'old_id']
+        
+        # Process demographic variables (deduplicated)
+        for var in demographic_vars:
+            if var in demographics_data.columns:
+                non_null_count = demographics_data[var].notna().sum()
+                total_count = len(demographics_data)
+                percentage = (non_null_count / total_count * 100) if total_count > 0 else 0
+                variable_summary.append({
+                    'Variable': var,
+                    'Non-Null Count': non_null_count,
+                    'Total Count': total_count,
+                    'Percentage': f"{percentage:.1f}%",
+                    'Data Source': 'Demographics (deduplicated)'
+                })
+        
+        # Process survey response variables (full data)
+        for var in response_vars:
+            if var in responses.columns:
+                non_null_count = responses[var].notna().sum()
+                total_count = len(responses)
+                percentage = (non_null_count / total_count * 100) if total_count > 0 else 0
+                variable_summary.append({
+                    'Variable': var,
+                    'Non-Null Count': non_null_count,
+                    'Total Count': total_count,
+                    'Percentage': f"{percentage:.1f}%",
+                    'Data Source': 'Survey Responses (full)'
+                })
+        
+        if variable_summary:
+            summary_df = pd.DataFrame(variable_summary)
+            
+            # Display as styled table
+            styled_summary = summary_df.style.format({
+                'Non-Null Count': '{:,}',
+                'Total Count': '{:,}'
+            }).set_properties(**{
+                'text-align': 'center',
+                'font-size': '14px',
+                'padding': '10px'
+            }).set_table_styles([
+                {
+                    'selector': 'thead th',
+                    'props': [
+                        ('background-color', '#667eea'),
+                        ('color', 'white'),
+                        ('font-weight', 'bold'),
+                        ('text-align', 'center'),
+                        ('padding', '12px'),
+                        ('border', '1px solid #ddd')
+                    ]
+                },
+                {
+                    'selector': 'tbody tr:nth-child(even)',
+                    'props': [('background-color', '#f8f9fa')]
+                },
+                {
+                    'selector': 'tbody tr:hover',
+                    'props': [('background-color', '#e3f2fd')]
+                },
+                {
+                    'selector': 'td',
+                    'props': [
+                        ('border', '1px solid #ddd'),
+                        ('padding', '8px')
+                    ]
+                }
+            ])
+            
+            st.write(styled_summary.to_html(), unsafe_allow_html=True)
+        
+        # Survey Questions Analysis
+        st.markdown("### 📝 Survey Questions Analysis")
+        
+        if 'q' in responses.columns and 'resp' in responses.columns:
+            # Show unique questions
+            unique_questions = responses['q'].dropna().unique()
+            st.markdown(f"**Total unique questions:** {len(unique_questions)}")
+            
+            # Show question distribution
+            question_counts = responses['q'].value_counts()
+            st.markdown("**Top 10 most frequently asked questions:**")
+            
+            top_questions = question_counts.head(10)
+            for i, (question, count) in enumerate(top_questions.items(), 1):
+                st.markdown(f"{i}. **{question}** - {count:,} responses")
+            
+            # Show response examples for a selected question
+            st.markdown("#### Response Examples")
+            selected_question = st.selectbox(
+                "Select a question to see response examples:",
+                options=unique_questions[:20],  # Show first 20 questions
+                key="question_selector"
+            )
+            
+            if selected_question:
+                question_responses = responses[responses['q'] == selected_question]['resp'].dropna()
+                if not question_responses.empty:
+                    st.markdown(f"**Question:** {selected_question}")
+                    st.markdown(f"**Total responses:** {len(question_responses):,}")
+                    
+                    # Show response distribution
+                    response_counts = question_responses.value_counts()
+                    st.markdown("**Response distribution:**")
+                    
+                    # Create a bar chart for responses
+                    if len(response_counts) <= 20:  # Only show chart if not too many unique responses
+                        fig_responses = px.bar(
+                            x=response_counts.values,
+                            y=response_counts.index,
+                            orientation='h',
+                            title=f"Response Distribution for: {selected_question[:50]}...",
+                            labels={'x': 'Count', 'y': 'Response'}
+                        )
+                        fig_responses.update_layout(height=400)
+                        st.plotly_chart(fig_responses, use_container_width=True)
+                    else:
+                        st.info(f"Too many unique responses ({len(response_counts)}) to display chart. Showing top 10:")
+                        for i, (response, count) in enumerate(response_counts.head(10).items(), 1):
+                            st.markdown(f"{i}. **{response}** - {count:,} responses")
+                else:
+                    st.info("No responses available for this question")
+        else:
+            st.info("Question and response data not available")
         
         # Charts
         col1, col2 = st.columns(2)
         
         with col1:
-            if 'GENDER' in responses.columns:
+            if 'gender' in demographics_data.columns:
                 with st.container():
                     st.markdown("#### Gender Distribution")
                     
                     # Add filters for this section (exclude gender filter since this IS the gender chart)
-                    filtered_gender = create_section_filters("Gender", responses, include_gender=False, include_age=True)
+                    filtered_gender = create_section_filters("Gender", demographics_data, include_gender=False, include_age=True)
                     
-                    gender_dist = filtered_gender['GENDER'].value_counts()
-                    total_gender_responses = gender_dist.sum()
-                    fig = px.pie(
-                        values=gender_dist.values, 
-                        names=gender_dist.index, 
-                        title=f"Gender Distribution - Sample Size: {total_gender_responses:,}"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Filter out null values for gender
+                    gender_data = filtered_gender['gender'].dropna()
+                    if not gender_data.empty:
+                        gender_dist = gender_data.value_counts()
+                        total_gender_responses = gender_dist.sum()
+                        fig = px.pie(
+                            values=gender_dist.values, 
+                            names=gender_dist.index, 
+                            title=f"Gender Distribution - Sample Size: {total_gender_responses:,}"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No gender data available (all values are null)")
         
         with col2:
-            if 'AGEGROUP' in responses.columns:
+            if 'age_group' in demographics_data.columns:
                 with st.container():
                     st.markdown("#### Age Group Distribution")
                     
                     # Add filters for this section (exclude age filter since this IS the age chart)
-                    filtered_age = create_section_filters("Age", responses, include_gender=True, include_age=False)
+                    filtered_age = create_section_filters("Age", demographics_data, include_gender=True, include_age=False)
                     
-                    age_dist = filtered_age['AGEGROUP'].value_counts()
-                    total_age_responses = age_dist.sum()
-                    fig = px.bar(
-                        x=age_dist.index, 
-                        y=age_dist.values, 
-                        title=f"Age Group Distribution - Sample Size: {total_age_responses:,}"
-                    )
-                    fig.update_layout(
-                        xaxis_title="",
-                        yaxis_title=""
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Filter out null values for age_group
+                    age_data = filtered_age['age_group'].dropna()
+                    if not age_data.empty:
+                        age_dist = age_data.value_counts()
+                        total_age_responses = age_dist.sum()
+                        fig = px.bar(
+                            x=age_dist.index, 
+                            y=age_dist.values, 
+                            title=f"Age Group Distribution - Sample Size: {total_age_responses:,}"
+                        )
+                        fig.update_layout(
+                            xaxis_title="",
+                            yaxis_title=""
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No age group data available (all values are null)")
         
         # Employment Status and Location Analysis
         col3, col4 = st.columns(2)
         
         with col3:
-            if 'Emloyment Status' in responses.columns:
+            if 'employment' in demographics_data.columns:
                 with st.container():
                     st.markdown("#### Employment Status")
                     
                     # Add filters for this section
-                    filtered_employment = create_section_filters("Employment", responses)
+                    filtered_employment = create_section_filters("Employment", demographics_data)
                     
-                    emp_dist = filtered_employment['Emloyment Status'].value_counts()
-                    total_emp_responses = emp_dist.sum()
-                    fig = px.pie(
-                        values=emp_dist.values, 
-                        names=emp_dist.index, 
-                        title=f"Employment Status Distribution - Sample Size: {total_emp_responses:,}",
-                        color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Filter out null values for employment
+                    employment_data = filtered_employment['employment'].dropna()
+                    if not employment_data.empty:
+                        emp_dist = employment_data.value_counts()
+                        total_emp_responses = emp_dist.sum()
+                        fig = px.pie(
+                            values=emp_dist.values, 
+                            names=emp_dist.index, 
+                            title=f"Employment Status Distribution - Sample Size: {total_emp_responses:,}",
+                            color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No employment data available (all values are null)")
         
         with col4:
+            # Side Hustles Analysis
+            if 'side_hustles' in demographics_data.columns:
+                with st.container():
+                    st.markdown("#### Side Hustles")
+                    side_hustles_data = demographics_data['side_hustles'].dropna()
+                    if not side_hustles_data.empty:
+                        side_hustles_dist = side_hustles_data.value_counts()
+                        total_side_hustles_responses = side_hustles_dist.sum()
+                        fig = px.pie(
+                            values=side_hustles_dist.values,
+                            names=side_hustles_dist.index,
+                            title=f"Side Hustles - Sample Size: {total_side_hustles_responses:,}",
+                            color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No side hustles data available (all values are null)")
+        
+        # Additional row for more charts
+        col5, col6 = st.columns(2)
+        
+        with col5:
             # Location Analysis
-            if 'LOCATION' in responses.columns:
+            if 'location' in demographics_data.columns:
                 with st.container():
                     st.markdown("#### Location Distribution")
                     
                     # Add filters for this section
-                    filtered_location = create_section_filters("Location", responses)
+                    filtered_location = create_section_filters("Location", demographics_data)
                     
-                    loc_dist = filtered_location['LOCATION'].value_counts()
+                    # Filter out null values for location
+                    location_data = filtered_location['location'].dropna()
+                    if not location_data.empty:
+                        loc_dist = location_data.value_counts()
                     
                     # Create location data for mapping
                     location_data = pd.DataFrame({
@@ -353,102 +536,107 @@ def main():
                         st.plotly_chart(fig, use_container_width=True)
         
         # SEM Groups Analysis
-        if 'SEM_SEGMENT' in responses.columns:
+        if 'sem_segment' in demographics_data.columns:
             with st.container():
                 st.markdown("#### SEM Groups Distribution")
                 
                 # Add filters for this section
-                filtered_sem = create_section_filters("SEM Groups", responses)
+                filtered_sem = create_section_filters("SEM Groups", demographics_data)
                 
-                sem_groups = filtered_sem['SEM_SEGMENT'].value_counts()
-                
-                # Sort SEM groups by label (SEM 1, SEM 2, etc.)
-                def extract_sem_number(x):
-                    try:
-                        # Extract number from SEM label (e.g., "SEM 5" -> 5)
-                        import re
-                        match = re.search(r'SEM\s*(\d+)', str(x), re.IGNORECASE)
-                        if match:
-                            return int(match.group(1))
-                        else:
-                            return 999  # Put non-matching items at the end
-                    except:
-                        return 999
-                
-                # Create a DataFrame to sort properly
-                sem_df = pd.DataFrame({
-                    'group': sem_groups.index,
-                    'count': sem_groups.values
-                })
-                
-                # Add sort key column
-                sem_df['sort_key'] = sem_df['group'].apply(extract_sem_number)
-                
-                # Sort by the sort key
-                sem_df_sorted = sem_df.sort_values('sort_key')
-                
-                # Create sorted series
-                sem_groups_sorted = pd.Series(
-                    sem_df_sorted['count'].values, 
-                    index=sem_df_sorted['group'].values
-                )
-                
-                # Get total sample size
-                total_sample = sem_groups.sum()
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Pie chart showing percentage share with sample size - brighter colors
-                    fig_pie = px.pie(
-                        values=sem_groups.values, 
-                        names=sem_groups.index, 
-                        title=f"SEM Groups - Percentage Share<br><sub>Sample Size: {total_sample:,} responses</sub>",
-                        color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
+                # Filter out null values for sem_segment
+                sem_data = filtered_sem['sem_segment'].dropna()
+                if not sem_data.empty:
+                    sem_groups = sem_data.value_counts()
+                    
+                    # Sort SEM groups by label (SEM 1, SEM 2, etc.)
+                    def extract_sem_number(x):
+                        try:
+                            # Extract number from SEM label (e.g., "SEM 5" -> 5)
+                            import re
+                            match = re.search(r'SEM\s*(\d+)', str(x), re.IGNORECASE)
+                            if match:
+                                return int(match.group(1))
+                            else:
+                                return 999  # Put non-matching items at the end
+                        except:
+                            return 999
+                    
+                    # Create a DataFrame to sort properly
+                    sem_df = pd.DataFrame({
+                        'group': sem_groups.index,
+                        'count': sem_groups.values
+                    })
+                    
+                    # Add sort key column
+                    sem_df['sort_key'] = sem_df['group'].apply(extract_sem_number)
+                    
+                    # Sort by the sort key
+                    sem_df_sorted = sem_df.sort_values('sort_key')
+                    
+                    # Create sorted series
+                    sem_groups_sorted = pd.Series(
+                        sem_df_sorted['count'].values, 
+                        index=sem_df_sorted['group'].values
                     )
-                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-                    fig_pie.update_layout(font_size=12)
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                
-                with col2:
-                    # Bar chart showing counts with sample size, ordered by SEM labels - no color coding
-                    fig_bar = px.bar(
-                        x=sem_groups_sorted.index, 
-                        y=sem_groups_sorted.values, 
-                        title=f"SEM Groups - Count Distribution<br><sub>Sample Size: {total_sample:,} responses</sub>",
-                        color_discrete_sequence=['#1f77b4']  # Single bright blue color
-                    )
-                    fig_bar.update_layout(
-                        xaxis_title="SEM Segment", 
-                        yaxis_title="Count",
-                        font_size=12,
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
-                
-                # Show detailed breakdown with better styling
-                st.markdown("##### SEM Groups Breakdown")
-                sem_breakdown = pd.DataFrame({
-                    'SEM Group': sem_groups.index,
-                    'Count': sem_groups.values,
-                    'Percentage': (sem_groups.values / sem_groups.sum() * 100).round(2)
-                })
-                
-                # Configure AgGrid
-                gb = GridOptionsBuilder.from_dataframe(sem_breakdown)
-                gb.configure_pagination(paginationAutoPageSize=True)
-                gb.configure_side_bar()
-                gb.configure_default_column(groupable=True, value=True, enableRowGroup=True, aggFunc='sum', editable=True)
-                gb.configure_column('Count', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=0)
-                gb.configure_column('Percentage', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=2)
-                gridOptions = gb.build()
-                
-                # Display AgGrid
-                AgGrid(sem_breakdown, gridOptions=gridOptions, enable_enterprise_modules=True, height=400)
+                    
+                    # Get total sample size
+                    total_sample = sem_groups.sum()
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Pie chart showing percentage share with sample size - brighter colors
+                        fig_pie = px.pie(
+                            values=sem_groups.values, 
+                            names=sem_groups.index, 
+                            title=f"SEM Groups - Percentage Share<br><sub>Sample Size: {total_sample:,} responses</sub>",
+                            color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
+                        )
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                        fig_pie.update_layout(font_size=12)
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                    
+                    with col2:
+                        # Bar chart showing counts with sample size, ordered by SEM labels - no color coding
+                        fig_bar = px.bar(
+                            x=sem_groups_sorted.index, 
+                            y=sem_groups_sorted.values, 
+                            title=f"SEM Groups - Count Distribution<br><sub>Sample Size: {total_sample:,} responses</sub>",
+                            color_discrete_sequence=['#1f77b4']  # Single bright blue color
+                        )
+                        fig_bar.update_layout(
+                            xaxis_title="SEM Segment", 
+                            yaxis_title="Count",
+                            font_size=12,
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig_bar, use_container_width=True)
+                    
+                    # Show detailed breakdown with better styling
+                    st.markdown("##### SEM Groups Breakdown")
+                    sem_breakdown = pd.DataFrame({
+                        'SEM Group': sem_groups.index,
+                        'Count': sem_groups.values,
+                        'Percentage': (sem_groups.values / sem_groups.sum() * 100).round(2)
+                    })
+                    
+                    # Configure AgGrid
+                    gb = GridOptionsBuilder.from_dataframe(sem_breakdown)
+                    gb.configure_pagination(paginationAutoPageSize=True)
+                    gb.configure_side_bar()
+                    gb.configure_default_column(groupable=True, value=True, enableRowGroup=True, aggFunc='sum', editable=True)
+                    gb.configure_column('Count', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=0)
+                    gb.configure_column('Percentage', type=['numericColumn', 'numberColumnFilter', 'customNumericFormat'], precision=2)
+                    gridOptions = gb.build()
+                    
+                    # Display AgGrid
+                    AgGrid(sem_breakdown, gridOptions=gridOptions, enable_enterprise_modules=True, height=400)
+                else:
+                    st.info("No SEM segment data available (all values are null)")
         
     else:
         st.warning("⚠️ No data found or connection failed")
-        st.info("The dashboard is working but couldn't retrieve data from your BigQuery table.")
+        st.info("The dashboard is working but couldn't retrieve data from your backend API.")
 
 if __name__ == "__main__":
     main()

@@ -4,72 +4,43 @@ Survey Questions Dashboard Page
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from bigquery_database import get_database
+from backend_client import get_backend_client
 from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def get_real_data():
-    """Get real data from your BigQuery table"""
-    db = get_database()
-    if not db:
+    """Get real data from your backend API"""
+    client = get_backend_client()
+    if not client:
+        st.warning("⚠️ Backend connection not available - using sample data")
         return None, None, None, None
     
     try:
-        # Get all survey data (no survey ID filter)
-        responses = db.execute_query(f"""
-            SELECT 
-                SURVEY_ID,
-                SURVEY_TITLE,
-                SURVEY_QUESTION,
-                RESPONSE_X as RESPONSE,
-                SEM_SCORE,
-                GENDER,
-                AGE_GROUP as AGEGROUP,
-                EMPLOYMENT as "Emloyment Status",
-                LOCATION,
-                `salary per month`,
-                SEM_SEGMENT,
-                `Side Hustles`,
-                CREATED_DATE as CREATED_AT
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL
-        """)
+        # Get responses data from your backend (same as demographics page)
+        responses = client.get_responses()
         
         if responses.empty:
             return None, None, None, None
         
-        # Get available survey IDs for display
-        surveys = db.execute_query(f"SELECT DISTINCT SURVEY_ID FROM `{db.project_id}.{db.dataset_id}.{db.table_id}` WHERE SURVEY_ID IS NOT NULL ORDER BY SURVEY_ID")
-        survey_ids = surveys['SURVEY_ID'].tolist()
+        # Get survey summary for analytics
+        summary = client.get_survey_summary()
         
-        # Get basic analytics for all data
-        analytics = db.execute_query(f"""
-            SELECT 
-                COUNT(*) as total_responses,
-                COUNT(DISTINCT PROFILEUUID) as unique_respondents,
-                AVG(SEM_SCORE) as avg_sem_score,
-                MIN(SEM_SCORE) as min_sem_score,
-                MAX(SEM_SCORE) as max_sem_score
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL
-        """)
+        # Create proper analytics from the responses data
+        survey_ids = ['Backend Data']  # Placeholder
         
-        # Get SEM score distribution for all data
-        score_dist = db.execute_query(f"""
-            SELECT 
-                SEM_SCORE,
-                COUNT(*) as count
-            FROM `{db.project_id}.{db.dataset_id}.{db.table_id}`
-            WHERE SURVEY_ID IS NOT NULL AND SEM_SCORE IS NOT NULL
-            GROUP BY SEM_SCORE
-            ORDER BY SEM_SCORE
-        """)
+        # For survey questions analysis, we'll use the responses data directly
+        # Extract unique questions from the responses
+        if 'q' in responses.columns:
+            unique_questions = responses['q'].dropna().unique()
+            questions_df = pd.DataFrame({'question': unique_questions})
+        else:
+            questions_df = pd.DataFrame()
         
-        return survey_ids, responses, analytics, score_dist
+        return survey_ids, questions_df, questions_df, responses
         
     except Exception as e:
-        st.error(f"Error getting data: {str(e)}")
+        st.error(f"Error getting data from backend: {str(e)}")
         return None, None, None, None
 
 def main():
@@ -93,12 +64,9 @@ def main():
             st.rerun()
     
     # Get data
-    survey_ids, responses, analytics, score_dist = get_real_data()
+    survey_ids, shop_questions, range_questions, responses = get_real_data()
     
-    # Get database connection for additional queries
-    db = get_database()
-    
-    if survey_ids and not responses.empty:
+    if survey_ids and responses is not None and not responses.empty:
         # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
         
         # Debug: Show available survey questions
@@ -133,8 +101,8 @@ def main():
             # Age filter
             if include_age:
                 with available_cols[col_index]:
-                    if 'AGEGROUP' in data.columns:
-                        age_options = ['All'] + sorted([age for age in data['AGEGROUP'].unique() if pd.notna(age)])
+                    if 'age_group' in data.columns:
+                        age_options = ['All'] + sorted([age for age in data['age_group'].unique() if pd.notna(age)])
                         selected_age = st.selectbox("Age Group", age_options, key=f"age_{section_name}")
                     else:
                         selected_age = 'All'
@@ -145,8 +113,8 @@ def main():
             # Gender filter
             if include_gender:
                 with available_cols[col_index]:
-                    if 'GENDER' in data.columns:
-                        gender_options = ['All'] + sorted([gender for gender in data['GENDER'].unique() if pd.notna(gender)])
+                    if 'gender' in data.columns:
+                        gender_options = ['All'] + sorted([gender for gender in data['gender'].unique() if pd.notna(gender)])
                         selected_gender = st.selectbox("Gender", gender_options, key=f"gender_{section_name}")
                     else:
                         selected_gender = 'All'
@@ -156,8 +124,8 @@ def main():
             
             # SEM filter as checkboxes
             with available_cols[col_index]:
-                if 'SEM_SEGMENT' in data.columns:
-                    sem_options = sorted([sem for sem in data['SEM_SEGMENT'].unique() if pd.notna(sem)])
+                if 'sem_segment' in data.columns:
+                    sem_options = sorted([sem for sem in data['sem_segment'].unique() if pd.notna(sem)])
                     selected_sems = st.multiselect("SEM Segments", sem_options, default=[], key=f"sem_{section_name}")
                 else:
                     selected_sems = []
@@ -166,13 +134,13 @@ def main():
             filtered_data = data.copy()
             
             if include_age and selected_age != 'All':
-                filtered_data = filtered_data[filtered_data['AGEGROUP'] == selected_age]
+                filtered_data = filtered_data[filtered_data['age_group'] == selected_age]
             
             if include_gender and selected_gender != 'All':
-                filtered_data = filtered_data[filtered_data['GENDER'] == selected_gender]
+                filtered_data = filtered_data[filtered_data['gender'] == selected_gender]
             
             if selected_sems:  # Only filter if at least one SEM segment is selected
-                filtered_data = filtered_data[filtered_data['SEM_SEGMENT'].isin(selected_sems)]
+                filtered_data = filtered_data[filtered_data['sem_segment'].isin(selected_sems)]
             
             # Show filter summary
             total_original = len(data)
@@ -185,11 +153,11 @@ def main():
         
         # Shop Visitation Analysis
         shop_question = "Which of these shops do you visit most often (Select all that apply)"
-        shop_responses = responses[responses['SURVEY_QUESTION'] == shop_question]
+        shop_responses = responses[responses['q'] == shop_question]
         
         # Debug: Check for similar questions
-        if shop_responses.empty and 'SURVEY_QUESTION' in responses.columns:
-            similar_questions = [q for q in responses['SURVEY_QUESTION'].unique() if 'shop' in q.lower() or 'visit' in q.lower()]
+        if shop_responses.empty and 'q' in responses.columns:
+            similar_questions = [q for q in responses['q'].unique() if 'shop' in q.lower() or 'visit' in q.lower()]
             if similar_questions:
                 st.info(f"🔍 No exact match for shop question. Similar questions found: {similar_questions}")
         
@@ -202,7 +170,7 @@ def main():
                 
                 # Process the responses - they might be comma-separated or individual responses
                 all_shops = []
-                for response in filtered_shop['RESPONSE']:
+                for response in filtered_shop['resp']:
                     if pd.notna(response):
                         # Split by comma and clean up
                         shops = [shop.strip() for shop in str(response).split(',')]
@@ -285,11 +253,11 @@ def main():
         
         # Travel Cost Analysis
         travel_question = "How much did you pay for this trip?"
-        travel_responses = responses[responses['SURVEY_QUESTION'] == travel_question]
+        travel_responses = responses[responses['q'] == travel_question]
         
         # Debug: Check for similar questions
-        if travel_responses.empty and 'SURVEY_QUESTION' in responses.columns:
-            similar_questions = [q for q in responses['SURVEY_QUESTION'].unique() if 'trip' in q.lower() or 'pay' in q.lower() or 'cost' in q.lower()]
+        if travel_responses.empty and 'q' in responses.columns:
+            similar_questions = [q for q in responses['q'].unique() if 'trip' in q.lower() or 'pay' in q.lower() or 'cost' in q.lower()]
             if similar_questions:
                 st.info(f"🔍 No exact match for trip cost question. Similar questions found: {similar_questions}")
         
@@ -302,7 +270,7 @@ def main():
                 
                 # Process trip cost data using improved extraction logic
                 trip_costs = []
-                for response in filtered_travel['RESPONSE']:
+                for response in filtered_travel['resp']:
                     if pd.notna(response):
                         import re
                         response_str = str(response).lower()
@@ -501,11 +469,11 @@ def main():
         
         # Main Source of Money Analysis
         money_question = "What is your main source of money?"
-        money_responses = responses[responses['SURVEY_QUESTION'] == money_question]
+        money_responses = responses[responses['q'] == money_question]
         
         # Debug: Check for similar questions
-        if money_responses.empty and 'SURVEY_QUESTION' in responses.columns:
-            similar_questions = [q for q in responses['SURVEY_QUESTION'].unique() if 'money' in q.lower() or 'source' in q.lower() or 'income' in q.lower()]
+        if money_responses.empty and 'q' in responses.columns:
+            similar_questions = [q for q in responses['q'].unique() if 'money' in q.lower() or 'source' in q.lower() or 'income' in q.lower()]
             if similar_questions:
                 st.info(f"🔍 No exact match for money source question. Similar questions found: {similar_questions}")
         
@@ -517,7 +485,7 @@ def main():
                 filtered_money = create_section_filters("Money Source", money_responses)
                 
                 # Get money source distribution
-                money_dist = filtered_money['RESPONSE'].value_counts()
+                money_dist = filtered_money['resp'].value_counts()
                 total_money_responses = len(filtered_money)
                 
                 # Create two-column layout
@@ -621,7 +589,7 @@ def main():
                     st.markdown("##### Side Hustles Distribution")
                     
                     # Get side hustles data, filtering out NaN values
-                    side_hustles_data = filtered_money['Side Hustles'].dropna()
+                    side_hustles_data = filtered_money['side_hustles'].dropna()
                     side_hustles_count = len(side_hustles_data)
                     
                     if side_hustles_count > 0:
@@ -657,17 +625,9 @@ def main():
         
         # Monthly Travel Cost Analysis
         try:
-            # Get monthly spending per commuter - simplified approach
-            # First get all trip cost data and process it in Python
-            trip_cost_data = db.execute_query("""
-                SELECT 
-                    PROFILEUUID,
-                    CREATED_DATE,
-                    RESPONSE_X
-                FROM SURVEYS_DB.RAW.NEW_DASBOARD_DATA1 
-                WHERE SURVEY_QUESTION = 'How much did you pay for this trip?'
-                AND RESPONSE_X IS NOT NULL
-            """)
+            # Get monthly spending per commuter - using backend data
+            # First get all trip cost data from responses
+            trip_cost_data = responses[responses['q'] == 'How much did you pay for this trip?'].copy()
             
             if not trip_cost_data.empty:
                 # Process costs in Python (more reliable than complex SQL)
@@ -675,7 +635,7 @@ def main():
                 processed_costs = []
                 
                 for _, row in trip_cost_data.iterrows():
-                    response_str = str(row['RESPONSE_X']).lower()
+                    response_str = str(row['resp']).lower()
                     cost = None
                     
                     # Handle ranges like "R61 to R70" - take midpoint
@@ -703,21 +663,21 @@ def main():
                     
                     if cost is not None and cost > 0:
                         processed_costs.append({
-                            'PROFILEUUID': row['PROFILEUUID'],
-                            'CREATED_DATE': row['CREATED_DATE'],
+                            'pid': row['pid'],
+                            'ts': row['ts'],
                             'cost': cost
                         })
                 
                 if processed_costs:
                     # Convert to DataFrame and process monthly data
                     costs_df = pd.DataFrame(processed_costs)
-                    costs_df['CREATED_DATE'] = pd.to_datetime(costs_df['CREATED_DATE'])
-                    costs_df['month'] = costs_df['CREATED_DATE'].dt.to_period('M')
+                    costs_df['ts'] = pd.to_datetime(costs_df['ts'])
+                    costs_df['month'] = costs_df['ts'].dt.to_period('M')
                     
                     # Calculate monthly spending per commuter
-                    monthly_spending = costs_df.groupby(['month', 'PROFILEUUID'])['cost'].sum().reset_index()
+                    monthly_spending = costs_df.groupby(['month', 'pid'])['cost'].sum().reset_index()
                     monthly_costs = monthly_spending.groupby('month').agg({
-                        'PROFILEUUID': 'nunique',
+                        'pid': 'nunique',
                         'cost': ['mean', 'sum', 'count']
                     }).reset_index()
                     
@@ -735,11 +695,11 @@ def main():
             # Calculate weekly costs using the same processed data
             if not trip_cost_data.empty and processed_costs:
                 # Calculate weekly spending per commuter using week number instead of period
-                costs_df['week_start'] = costs_df['CREATED_DATE'].dt.to_period('W').dt.start_time
+                costs_df['week_start'] = costs_df['ts'].dt.to_period('W').dt.start_time
                 
-                weekly_spending = costs_df.groupby(['week_start', 'PROFILEUUID'])['cost'].sum().reset_index()
+                weekly_spending = costs_df.groupby(['week_start', 'pid'])['cost'].sum().reset_index()
                 weekly_costs = weekly_spending.groupby('week_start').agg({
-                    'PROFILEUUID': 'nunique',
+                    'pid': 'nunique',
                     'cost': ['mean', 'sum', 'count']
                 }).reset_index()
                 
@@ -909,7 +869,7 @@ def main():
         
     else:
         st.warning("⚠️ No data found or connection failed")
-        st.info("The dashboard is working but couldn't retrieve data from your BigQuery table.")
+        st.info("The dashboard is working but couldn't retrieve data from your backend API.")
 
 if __name__ == "__main__":
     main()

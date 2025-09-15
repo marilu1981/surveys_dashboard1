@@ -1,2 +1,0 @@
-# Minimal requirements for basic app
-streamlit>=1.49.1

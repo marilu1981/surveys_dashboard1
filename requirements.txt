@@ -4,3 +4,4 @@ plotly>=6.3.0
 requests>=2.31.0
 streamlit-aggrid>=0.3.4
 streamlit-authenticator>=0.2.3
+altair>=5.0.0

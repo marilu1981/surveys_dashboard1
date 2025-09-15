@@ -11,11 +11,11 @@ gatherUsageStats = false
 
 [theme]
 base="dark"
-primaryColor="#34d399"
-backgroundColor="#0b1220"
-secondaryBackgroundColor="#111827"
-textColor="#e5e7eb"
-font="sans serif
+primaryColor="#2979ff"
+backgroundColor="#181C24"
+secondaryBackgroundColor="#232B36"
+textColor="#F8F8FF"
+font="sans-serif"
 
 [runner]
 fastReruns = true

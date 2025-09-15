@@ -11,7 +11,7 @@ import os
 
 # Add the parent directory to the path to import our modules
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from altair import create_altair_chart
+from chart_utils import create_altair_chart
 
 # Add the styles directory to the path
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
@@ -85,22 +85,6 @@ def main():
     # Apply card styles
     apply_card_styles()
     
-    # Only show sidebar navigation if not called from main app
-    if 'current_page' not in st.session_state:
-        # Sidebar navigation
-        st.sidebar.title("📊 Navigation")
-        st.sidebar.markdown("---")
-        
-        # Add navigation buttons
-        if st.sidebar.button("🏠 Home", key="home_demo"):
-            st.switch_page("app.py")
-        
-        if st.sidebar.button("👥 Demographics", key="demographics_demo"):
-            st.rerun()
-        
-        if st.sidebar.button("📋 Survey Questions", key="survey_questions_demo"):
-            st.switch_page("dashboard_pages/survey_questions.py")
-    
     # Get data
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()
     
@@ -135,13 +119,13 @@ def main():
             if include_age:
                 with available_cols[col_index]:
                     if 'age_group' in data.columns:
-                        age_options = ['All'] + sorted([age for age in data['age_group'].unique() if pd.notna(age)])
-                        selected_age = st.selectbox("Age Group", age_options, key=f"age_{section_name}")
+                        age_options = sorted([age for age in data['age_group'].unique() if pd.notna(age)])
+                        selected_ages = st.multiselect("Age Groups", age_options, default=[], key=f"age_{section_name}")
                     else:
-                        selected_age = 'All'
+                        selected_ages = []
                 col_index += 1
             else:
-                selected_age = 'All'
+                selected_ages = []
             
             # Gender filter
             if include_gender:
@@ -166,8 +150,8 @@ def main():
             # Apply filters
             filtered_data = data.copy()
             
-            if include_age and selected_age != 'All':
-                filtered_data = filtered_data[filtered_data['age_group'] == selected_age]
+            if include_age and selected_ages:  # Only filter if at least one age group is selected
+                filtered_data = filtered_data[filtered_data['age_group'].isin(selected_ages)]
             
             if include_gender and selected_gender != 'All':
                 filtered_data = filtered_data[filtered_data['gender'] == selected_gender]
@@ -216,7 +200,7 @@ def main():
                 st.metric("Date Range", "No Data")
         
         # Add Altair chart example
-        st.markdown("### 📈 Response Trends (Altair Chart)")
+        st.markdown("### 📈 Response Trends")
         
         # Create sample trend data based on actual timestamps if available
         if 'ts' in responses.columns:
@@ -225,9 +209,10 @@ def main():
                 # Create daily response counts
                 daily_counts = dates.dt.date.value_counts().sort_index()
                 trend_data = pd.DataFrame({
-                    'date': daily_counts.index,
+                    'date': daily_counts.index.astype(str),  # Convert to string for Altair
                     'responses': daily_counts.values
                 })
+                
                 
                 # Create Altair chart
                 altair_chart = create_altair_chart(
@@ -239,7 +224,13 @@ def main():
                     width=800,
                     height=300
                 )
-                st.altair_chart(altair_chart, use_container_width=True)
+                
+                if altair_chart is not None:
+                    st.altair_chart(altair_chart, use_container_width=True)
+                else:
+                    # Fallback to a simple table if Altair is not available
+                    st.info("📊 Daily Response Counts (Altair not available)")
+                    st.dataframe(trend_data, use_container_width=True)
             else:
                 st.info("No valid date data available for trend analysis")
         else:

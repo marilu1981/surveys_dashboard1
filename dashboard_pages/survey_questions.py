@@ -11,7 +11,7 @@ import os
 
 # Add the parent directory to the path to import our modules
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from altair import create_altair_chart
+from chart_utils import create_altair_chart
 
 # Add the styles directory to the path
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
@@ -115,13 +115,13 @@ def main():
             if include_age:
                 with available_cols[col_index]:
                     if 'age_group' in data.columns:
-                        age_options = ['All'] + sorted([age for age in data['age_group'].unique() if pd.notna(age)])
-                        selected_age = st.selectbox("Age Group", age_options, key=f"age_{section_name}")
+                        age_options = sorted([age for age in data['age_group'].unique() if pd.notna(age)])
+                        selected_ages = st.multiselect("Age Groups", age_options, default=[], key=f"age_{section_name}")
                     else:
-                        selected_age = 'All'
+                        selected_ages = []
                 col_index += 1
             else:
-                selected_age = 'All'
+                selected_ages = []
             
             # Gender filter
             if include_gender:
@@ -146,8 +146,8 @@ def main():
             # Apply filters
             filtered_data = data.copy()
             
-            if include_age and selected_age != 'All':
-                filtered_data = filtered_data[filtered_data['age_group'] == selected_age]
+            if include_age and selected_ages:  # Only filter if at least one age group is selected
+                filtered_data = filtered_data[filtered_data['age_group'].isin(selected_ages)]
             
             if include_gender and selected_gender != 'All':
                 filtered_data = filtered_data[filtered_data['gender'] == selected_gender]

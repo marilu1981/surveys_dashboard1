@@ -71,13 +71,8 @@ class BackendClient:
             response = _self.session.get(f"{_self.base_url}/api/responses")
             response.raise_for_status()
             
-            # Debug: Show raw response
-            st.info(f"Response status: {response.status_code}")
-            st.info(f"Response headers: {dict(response.headers)}")
-            
-            # Try to get text first to debug
+            # Get response text
             response_text = response.text
-            st.info(f"Response text (first 500 chars): {response_text[:500]}")
             
             # Try to parse JSON - handle multiple JSON objects
             try:
@@ -91,16 +86,11 @@ class BackendClient:
                     return pd.DataFrame()
             except json.JSONDecodeError as json_err:
                 # If that fails, try to parse multiple JSON objects
-                st.warning(f"Standard JSON parsing failed: {str(json_err)}")
-                st.info("Attempting to parse multiple JSON objects...")
-                
                 try:
                     # Try different approaches to parse concatenated JSON
-                    st.info(f"Full response length: {len(response_text)} characters")
                     
                     # Method 1: Split by '} {' pattern
                     if '} {' in response_text:
-                        st.info("Found '} {' pattern - splitting concatenated JSON objects")
                         json_objects = response_text.split('} {')
                         
                         if len(json_objects) > 1:
@@ -114,16 +104,13 @@ class BackendClient:
                                 try:
                                     parsed_obj = json.loads(obj)
                                     parsed_objects.append(parsed_obj)
-                                except json.JSONDecodeError as obj_err:
-                                    st.warning(f"Failed to parse object {i}: {str(obj_err)}")
+                                except json.JSONDecodeError:
                                     continue
                             
                             if parsed_objects:
-                                st.success(f"Successfully parsed {len(parsed_objects)} JSON objects")
                                 return pd.DataFrame(parsed_objects)
                     
                     # Method 2: Try to parse line by line (if each JSON is on a separate line)
-                    st.info("Trying line-by-line parsing...")
                     lines = response_text.strip().split('\n')
                     parsed_objects = []
                     
@@ -179,11 +166,9 @@ class BackendClient:
                                         break
                     
                     if parsed_objects:
-                        st.success(f"Successfully parsed {len(parsed_objects)} JSON objects using line parsing")
                         return pd.DataFrame(parsed_objects)
                     
                     # Method 3: Try to extract JSON objects using regex-like approach
-                    st.info("Trying regex-like JSON extraction...")
                     import re
                     
                     # Find all JSON objects in the text
@@ -199,10 +184,8 @@ class BackendClient:
                             continue
                     
                     if parsed_objects:
-                        st.success(f"Successfully parsed {len(parsed_objects)} JSON objects using regex")
                         return pd.DataFrame(parsed_objects)
                     
-                    st.error("All parsing methods failed")
                     return pd.DataFrame()
                         
                 except Exception as parse_err:
@@ -274,14 +257,15 @@ def get_backend_client():
     """Get cached backend client with fallback configuration"""
     try:
         # Try to get configuration from secrets first
-        if 'backend' in st.secrets:
-            config = st.secrets['backend']
-            base_url = config.get('base_url')
-            api_key = config.get('api_key')
-            st.info("✅ Using secrets configuration")
-        else:
+        try:
+            if hasattr(st, 'secrets') and 'backend' in st.secrets:
+                config = st.secrets['backend']
+                base_url = config.get('base_url')
+                api_key = config.get('api_key')
+            else:
+                raise Exception("Secrets not available")
+        except Exception as secrets_error:
             # Fallback to hardcoded values for deployment
-            st.warning("⚠️ Using fallback backend configuration")
             base_url = "https://ansebmrsurveysv1.oa.r.appspot.com"
             api_key = ""
         
@@ -293,10 +277,8 @@ def get_backend_client():
         
         # Test connection
         if client.test_connection():
-            st.success("✅ Backend connection successful")
             return client
         else:
-            st.error("❌ Backend connection failed")
             return None
             
     except Exception as e:

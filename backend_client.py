@@ -197,6 +197,128 @@ class BackendClient:
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_health_surveys(_self) -> pd.DataFrame:
+        """Get health surveys data from your backend"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/health-surveys")
+            response.raise_for_status()
+            
+            # Try to parse JSON - handle multiple JSON objects
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    return pd.DataFrame(data)
+                elif isinstance(data, dict) and 'data' in data:
+                    return pd.DataFrame(data['data'])
+                else:
+                    return pd.DataFrame()
+            except json.JSONDecodeError as json_err:
+                # Handle multiple JSON objects like in get_responses
+                response_text = response.text
+                if '} {' in response_text:
+                    json_objects = response_text.split('} {')
+                    if len(json_objects) > 1:
+                        json_objects[0] = json_objects[0] + '}'
+                        json_objects[-1] = '{' + json_objects[-1]
+                        
+                        parsed_objects = []
+                        for json_str in json_objects:
+                            try:
+                                parsed_objects.append(json.loads(json_str))
+                            except json.JSONDecodeError:
+                                continue
+                        
+                        if parsed_objects:
+                            return pd.DataFrame(parsed_objects)
+                
+                # If all else fails, try to parse as CSV
+                try:
+                    from io import StringIO
+                    return pd.read_csv(StringIO(response_text))
+                except:
+                    pass
+                
+                return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            return pd.DataFrame()
+        except Exception as e:
+            return pd.DataFrame()
+
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_brands_data(_self) -> pd.DataFrame:
+        """Get processed survey data brands from your backend (.ndjson format)"""
+        try:
+            # Try different possible endpoint variations
+            endpoints_to_try = [
+                f"{_self.base_url}/api/processed-survey-data-brands",
+                f"{_self.base_url}/api/brands",
+                f"{_self.base_url}/api/processed_survey_data_brands",
+                f"{_self.base_url}/processed-survey-data-brands",
+                f"{_self.base_url}/brands"
+            ]
+            
+            response = None
+            for endpoint in endpoints_to_try:
+                try:
+                    response = _self.session.get(endpoint)
+                    if response.status_code == 200:
+                        break
+                except:
+                    continue
+            
+            if response is None or response.status_code != 200:
+                raise Exception(f"No valid endpoint found. Tried: {endpoints_to_try}")
+            
+            response.raise_for_status()
+            
+            # Handle .ndjson format (JSON Lines)
+            try:
+                # Split by lines and parse each JSON object
+                lines = response.text.strip().split('\n')
+                data = []
+                for line in lines:
+                    if line.strip():  # Skip empty lines
+                        try:
+                            parsed_line = json.loads(line)
+                            # Handle potential blank first column or empty keys
+                            if isinstance(parsed_line, dict):
+                                # Remove any keys with empty values or None
+                                cleaned_line = {k: v for k, v in parsed_line.items() 
+                                             if k is not None and k.strip() != '' and v is not None}
+                                if cleaned_line:  # Only add if there's actual data
+                                    data.append(cleaned_line)
+                        except json.JSONDecodeError:
+                            continue
+                
+                if data:
+                    df = pd.DataFrame(data)
+                    # Remove any columns that are completely empty or have no name
+                    df = df.dropna(axis=1, how='all')  # Remove columns that are all NaN
+                    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]  # Remove unnamed columns
+                    return df
+                else:
+                    return pd.DataFrame()
+                    
+            except Exception as json_err:
+                # Fallback: try to parse as regular JSON
+                try:
+                    data = response.json()
+                    if isinstance(data, list):
+                        return pd.DataFrame(data)
+                    elif isinstance(data, dict) and 'data' in data:
+                        return pd.DataFrame(data['data'])
+                    else:
+                        return pd.DataFrame()
+                except:
+                    return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            return pd.DataFrame()
+        except Exception as e:
+            return pd.DataFrame()
+
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
     def get_survey_questions(_self) -> pd.DataFrame:
         """Get survey questions from your backend"""
         try:

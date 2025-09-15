@@ -89,6 +89,52 @@ def main():
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()
     
     if survey_ids and not responses.empty:
+        # Date Range Filter
+        st.markdown("### 📅 Date Range Filter")
+        
+        # Convert ts column to datetime if it exists
+        if 'ts' in responses.columns:
+            responses['ts'] = pd.to_datetime(responses['ts'], errors='coerce')
+            valid_dates = responses['ts'].dropna()
+            
+            if not valid_dates.empty:
+                min_date = valid_dates.min().date()
+                max_date = valid_dates.max().date()
+                
+                # Create date slider
+                date_range = st.date_input(
+                    "Select date range:",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="date_range_filter"
+                )
+                
+                # Apply date filter to responses
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    # Convert to datetime for comparison
+                    start_datetime = pd.to_datetime(start_date)
+                    end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
+                    
+                    # Filter responses by date range
+                    responses = responses[
+                        (responses['ts'] >= start_datetime) & 
+                        (responses['ts'] < end_datetime)
+                    ]
+                    
+                    # Update demographics data to match filtered responses
+                    if 'pid' in responses.columns:
+                        filtered_pids = responses['pid'].unique()
+                        demographics_data = demographics_data[demographics_data['pid'].isin(filtered_pids)]
+                    
+                    st.info(f"📊 Showing data from {start_date} to {end_date} ({len(responses):,} responses)")
+                else:
+                    st.info("📊 Please select both start and end dates")
+            else:
+                st.warning("⚠️ No valid date data found in responses")
+        else:
+            st.warning("⚠️ No timestamp column found in responses")
         # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
         
         # Helper function to create filters for a specific section
@@ -170,7 +216,7 @@ def main():
         
         # Key metrics
         st.markdown("### 📊 Key Metrics")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
         
         with col1:
             total_responses = analytics.iloc[0, 0]  # total_responses from analytics
@@ -236,141 +282,6 @@ def main():
         else:
             st.info("No timestamp data available for trend analysis")
         
-        # Variable Summary
-        st.markdown("### 📋 Variable Summary")
-        st.markdown("Count of non-null values for each variable:")
-        
-        # Create variable summary
-        variable_summary = []
-        
-        # Demographic variables (use deduplicated data)
-        demographic_vars = ['pid', 'gender', 'age_group', 'salary', 'employment', 'commuter_status', 'sem_segment', 'sem_score', 'side_hustles', 'location']
-        # Survey response variables (use full responses data)
-        response_vars = ['ts', 'title', 'q', 'resp', 'old_id']
-        
-        # Process demographic variables (deduplicated)
-        for var in demographic_vars:
-            if var in demographics_data.columns:
-                non_null_count = demographics_data[var].notna().sum()
-                total_count = len(demographics_data)
-                percentage = (non_null_count / total_count * 100) if total_count > 0 else 0
-                variable_summary.append({
-                    'Variable': var,
-                    'Non-Null Count': non_null_count,
-                    'Total Count': total_count,
-                    'Percentage': f"{percentage:.1f}%",
-                    'Data Source': 'Demographics (deduplicated)'
-                })
-        
-        # Process survey response variables (full data)
-        for var in response_vars:
-            if var in responses.columns:
-                non_null_count = responses[var].notna().sum()
-                total_count = len(responses)
-                percentage = (non_null_count / total_count * 100) if total_count > 0 else 0
-                variable_summary.append({
-                    'Variable': var,
-                    'Non-Null Count': non_null_count,
-                    'Total Count': total_count,
-                    'Percentage': f"{percentage:.1f}%",
-                    'Data Source': 'Survey Responses (full)'
-                })
-        
-        if variable_summary:
-            summary_df = pd.DataFrame(variable_summary)
-            
-            # Display as styled table
-            styled_summary = summary_df.style.format({
-                'Non-Null Count': '{:,}',
-                'Total Count': '{:,}'
-            }).set_properties(**{
-                'text-align': 'center',
-                'font-size': '14px',
-                'padding': '10px'
-            }).set_table_styles([
-                {
-                    'selector': 'thead th',
-                    'props': [
-                        ('background-color', '#667eea'),
-                        ('color', 'white'),
-                        ('font-weight', 'bold'),
-                        ('text-align', 'center'),
-                        ('padding', '12px'),
-                        ('border', '1px solid #ddd')
-                    ]
-                },
-                {
-                    'selector': 'tbody tr:nth-child(even)',
-                    'props': [('background-color', '#f8f9fa')]
-                },
-                {
-                    'selector': 'tbody tr:hover',
-                    'props': [('background-color', '#e3f2fd')]
-                },
-                {
-                    'selector': 'td',
-                    'props': [
-                        ('border', '1px solid #ddd'),
-                        ('padding', '8px')
-                    ]
-                }
-            ])
-            
-            st.write(styled_summary.to_html(), unsafe_allow_html=True)
-        
-        # Survey Questions Analysis
-        st.markdown("### 📝 Survey Questions Analysis")
-        
-        if 'q' in responses.columns and 'resp' in responses.columns:
-            # Show unique questions
-            unique_questions = responses['q'].dropna().unique()
-            st.markdown(f"**Total unique questions:** {len(unique_questions)}")
-            
-            # Show question distribution
-            question_counts = responses['q'].value_counts()
-            st.markdown("**Top 10 most frequently asked questions:**")
-            
-            top_questions = question_counts.head(10)
-            for i, (question, count) in enumerate(top_questions.items(), 1):
-                st.markdown(f"{i}. **{question}** - {count:,} responses")
-            
-            # Show response examples for a selected question
-            st.markdown("#### Response Examples")
-            selected_question = st.selectbox(
-                "Select a question to see response examples:",
-                options=unique_questions[:20],  # Show first 20 questions
-                key="question_selector"
-            )
-            
-            if selected_question:
-                question_responses = responses[responses['q'] == selected_question]['resp'].dropna()
-                if not question_responses.empty:
-                    st.markdown(f"**Question:** {selected_question}")
-                    st.markdown(f"**Total responses:** {len(question_responses):,}")
-                    
-                    # Show response distribution
-                    response_counts = question_responses.value_counts()
-                    st.markdown("**Response distribution:**")
-                    
-                    # Create a bar chart for responses
-                    if len(response_counts) <= 20:  # Only show chart if not too many unique responses
-                        fig_responses = px.bar(
-                            x=response_counts.values,
-                            y=response_counts.index,
-                            orientation='h',
-                            title=f"Response Distribution for: {selected_question[:50]}...",
-                            labels={'x': 'Count', 'y': 'Response'}
-                        )
-                        fig_responses.update_layout(height=400)
-                        st.plotly_chart(fig_responses, use_container_width=True)
-                    else:
-                        st.info(f"Too many unique responses ({len(response_counts)}) to display chart. Showing top 10:")
-                        for i, (response, count) in enumerate(response_counts.head(10).items(), 1):
-                            st.markdown(f"{i}. **{response}** - {count:,} responses")
-                else:
-                    st.info("No responses available for this question")
-        else:
-            st.info("Question and response data not available")
         
         # Charts
         col1, col2 = st.columns(2)
@@ -391,7 +302,7 @@ def main():
                         fig = px.pie(
                             values=gender_dist.values, 
                             names=gender_dist.index, 
-                            title=f"Gender Distribution - Sample Size: {total_gender_responses:,}"
+                            title=f"Sample Size: {total_gender_responses:,}"
                         )
                         st.plotly_chart(fig, use_container_width=True)
                     else:
@@ -413,7 +324,7 @@ def main():
                         fig = px.bar(
                             x=age_dist.index, 
                             y=age_dist.values, 
-                            title=f"Age Group Distribution - Sample Size: {total_age_responses:,}"
+                            title=f"Sample Size: {total_age_responses:,}"
                         )
                         fig.update_layout(
                             xaxis_title="",
@@ -442,7 +353,7 @@ def main():
                         fig = px.pie(
                             values=emp_dist.values, 
                             names=emp_dist.index, 
-                            title=f"Employment Status Distribution - Sample Size: {total_emp_responses:,}",
+                            title=f"Sample Size: {total_emp_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
                         )
                         st.plotly_chart(fig, use_container_width=True)
@@ -461,7 +372,7 @@ def main():
                         fig = px.pie(
                             values=side_hustles_dist.values,
                             names=side_hustles_dist.index,
-                            title=f"Side Hustles - Sample Size: {total_side_hustles_responses:,}",
+                            title=f"Sample Size: {total_side_hustles_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
                         )
                         st.plotly_chart(fig, use_container_width=True)

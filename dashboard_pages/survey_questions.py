@@ -80,7 +80,78 @@ def main():
     survey_ids, shop_questions, range_questions, responses = get_real_data()
     
     if survey_ids and responses is not None and not responses.empty:
+        # Date Range Filter
+        st.markdown("### 📅 Date Range Filter")
+        
+        # Convert ts column to datetime if it exists
+        if 'ts' in responses.columns:
+            responses['ts'] = pd.to_datetime(responses['ts'], errors='coerce')
+            valid_dates = responses['ts'].dropna()
+            
+            if not valid_dates.empty:
+                min_date = valid_dates.min().date()
+                max_date = valid_dates.max().date()
+                
+                # Create date slider
+                date_range = st.date_input(
+                    "Select date range:",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="date_range_filter_survey"
+                )
+                
+                # Apply date filter to responses
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    # Convert to datetime for comparison
+                    start_datetime = pd.to_datetime(start_date)
+                    end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
+                    
+                    # Filter responses by date range
+                    responses = responses[
+                        (responses['ts'] >= start_datetime) & 
+                        (responses['ts'] < end_datetime)
+                    ]
+                    
+                    st.info(f"📊 Showing data from {start_date} to {end_date} ({len(responses):,} responses)")
+                else:
+                    st.info("📊 Please select both start and end dates")
+            else:
+                st.warning("⚠️ No valid date data found in responses")
+        else:
+            st.warning("⚠️ No timestamp column found in responses")
         # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
+        
+        # # Debug: Show data summary
+        # st.markdown("### 🔍 Data Debug Information")
+        # with st.container(horizontal=True):
+        #     cols = st.columns(3, gap="small", width=300)
+
+        # with cols[0]:
+        #     st.metric("Total Responses", f"{len(responses):,}")
+        
+        # with cols[1]:
+        #     if 'ts' in responses.columns:
+        #         valid_dates = pd.to_datetime(responses['ts'], errors='coerce').dropna()
+        #         st.metric("Valid Timestamps", f"{len(valid_dates):,}")
+        #     else:
+        #         st.metric("Valid Timestamps", "0")
+        
+        # with cols[2]:
+        #     if 'q' in responses.columns:
+        #         unique_questions = responses['q'].dropna().nunique()
+        #         st.metric("Unique Questions", f"{unique_questions:,}")
+        #     else:
+        #         st.metric("Unique Questions", "0")
+        
+        # # Show column information
+        # st.markdown("#### 📊 Data Columns")
+        # st.write(f"**Available columns:** {list(responses.columns)}")
+        
+        # # Show sample data
+        # st.markdown("#### 📋 Sample Data (First 5 rows)")
+        # st.dataframe(responses.head(), use_container_width=True)
         
         # Debug: Show available survey questions
         if 'SURVEY_QUESTION' in responses.columns:
@@ -168,6 +239,15 @@ def main():
         shop_question = "Which of these shops do you visit most often (Select all that apply)"
         shop_responses = responses[responses['q'] == shop_question]
         
+        # Debug: Show shop analysis data
+        st.markdown("#### 🏪 Shop Visitation Analysis Debug")
+        st.write(f"**Looking for question:** '{shop_question}'")
+        st.write(f"**Found responses:** {len(shop_responses)}")
+        
+        if 'q' in responses.columns:
+            all_questions = responses['q'].unique()
+            st.write(f"**All available questions:** {list(all_questions)}")
+        
         # Debug: Check for similar questions
         if shop_responses.empty and 'q' in responses.columns:
             similar_questions = [q for q in responses['q'].unique() if 'shop' in q.lower() or 'visit' in q.lower()]
@@ -216,49 +296,12 @@ def main():
                     with col2:
                         # Show shop data table
                         shop_data = pd.DataFrame({
-                            'Shop': shop_counts.index,
-                            'Visits': shop_counts.values,
-                            'Percentage': (shop_counts.values / shop_counts.sum() * 100).round(1)
+                            "Shop": shop_counts.index,
+                            "Visits": [f"{count:,}" for count in shop_counts.values],
+                            "Percentage": [f"{pct:.1f}%" for pct in (shop_counts.values / shop_counts.sum() * 100)]
                         })
                         
-                        # Style the shop data table
-                        styled_shop_df = shop_data.style.format({
-                            'Visits': '{:,}',
-                            'Percentage': '{:.1f}%'
-                        }).set_properties(**{
-                            'text-align': 'center',
-                            'font-size': '14px',
-                            'padding': '10px'
-                        }).set_table_styles([
-                            {
-                                'selector': 'thead th',
-                                'props': [
-                                    ('background-color', '#667eea'),
-                                    ('color', 'white'),
-                                    ('font-weight', 'bold'),
-                                    ('text-align', 'center'),
-                                    ('padding', '12px'),
-                                    ('border', '1px solid #ddd')
-                                ]
-                            },
-                            {
-                                'selector': 'tbody tr:nth-child(even)',
-                                'props': [('background-color', '#f8f9fa')]
-                            },
-                            {
-                                'selector': 'tbody tr:hover',
-                                'props': [('background-color', '#e3f2fd')]
-                            },
-                            {
-                                'selector': 'td',
-                                'props': [
-                                    ('border', '1px solid #ddd'),
-                                    ('padding', '8px')
-                                ]
-                            }
-                        ])
-                        
-                        st.write(styled_shop_df.to_html(), unsafe_allow_html=True)
+                        st.table(shop_data)
                 else:
                     st.info("No shop data found in responses.")
         else:
@@ -267,6 +310,11 @@ def main():
         # Travel Cost Analysis
         travel_question = "How much did you pay for this trip?"
         travel_responses = responses[responses['q'] == travel_question]
+        
+        # Debug: Show travel cost analysis data
+        st.markdown("#### 💰 Travel Cost Analysis Debug")
+        st.write(f"**Looking for question:** '{travel_question}'")
+        st.write(f"**Found responses:** {len(travel_responses)}")
         
         # Debug: Check for similar questions
         if travel_responses.empty and 'q' in responses.columns:
@@ -356,7 +404,7 @@ def main():
                         fig_box = px.box(
                             trip_df,
                             y='cost',
-                            title=f"Trip Cost Distribution (Box Plot) - Sample Size: {total_trip_responses:,}",
+                            title=f"Sample Size: {total_trip_responses:,}",
                             labels={'cost': 'Cost (R)'},
                             color_discrete_sequence=['#4ECDC4']
                         )
@@ -437,43 +485,13 @@ def main():
                     
                     # Show detailed cost data table
                     st.markdown("##### Cost Range Breakdown")
-                    styled_range_df = range_df.style.format({
-                        'Count': '{:,}',
-                        'Percentage': '{:.1f}%'
-                    }).set_properties(**{
-                        'text-align': 'center',
-                        'font-size': '14px',
-                        'padding': '10px'
-                    }).set_table_styles([
-                        {
-                            'selector': 'thead th',
-                            'props': [
-                                ('background-color', '#667eea'),
-                                ('color', 'white'),
-                                ('font-weight', 'bold'),
-                                ('text-align', 'center'),
-                                ('padding', '12px'),
-                                ('border', '1px solid #ddd')
-                            ]
-                        },
-                        {
-                            'selector': 'tbody tr:nth-child(even)',
-                            'props': [('background-color', '#f8f9fa')]
-                        },
-                        {
-                            'selector': 'tbody tr:hover',
-                            'props': [('background-color', '#e3f2fd')]
-                        },
-                        {
-                            'selector': 'td',
-                            'props': [
-                                ('border', '1px solid #ddd'),
-                                ('padding', '8px')
-                            ]
-                        }
-                    ])
+                    range_data = pd.DataFrame({
+                        "Range": range_df['Range'],
+                        "Count": [f"{count:,}" for count in range_df['Count']],
+                        "Percentage": [f"{pct:.1f}%" for pct in range_df['Percentage']]
+                    })
                     
-                    st.write(styled_range_df.to_html(), unsafe_allow_html=True)
+                    st.table(range_data)
                     
                 else:
                     st.info("No valid cost data found in responses.")
@@ -483,6 +501,11 @@ def main():
         # Main Source of Money Analysis
         money_question = "What is your main source of money?"
         money_responses = responses[responses['q'] == money_question]
+        
+        # Debug: Show money source analysis data
+        st.markdown("#### 💵 Money Source Analysis Debug")
+        st.write(f"**Looking for question:** '{money_question}'")
+        st.write(f"**Found responses:** {len(money_responses)}")
         
         # Debug: Check for similar questions
         if money_responses.empty and 'q' in responses.columns:
@@ -509,7 +532,7 @@ def main():
                     fig_money_pie = px.pie(
                         values=money_dist.values,
                         names=money_dist.index,
-                        title=f"Main Source of Money Distribution - Sample Size: {total_money_responses:,}",
+                        title=f"Sample Size: {total_money_responses:,}",
                         color_discrete_sequence=[
                             '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
                             '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
@@ -553,49 +576,13 @@ def main():
                 col_table, col_side_hustles = st.columns([2, 1])
                 
                 with col_table:
-                    money_df = pd.DataFrame({
-                        'Money Source': money_dist.index,
-                        'Count': money_dist.values,
-                        'Percentage': (money_dist.values / total_money_responses * 100).round(2)
+                    money_data = pd.DataFrame({
+                        "Money Source": money_dist.index,
+                        "Count": [f"{count:,}" for count in money_dist.values],
+                        "Percentage": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
                     })
                     
-                    styled_money_df = money_df.style.format({
-                        'Count': '{:,}',
-                        'Percentage': '{:.1f}%'
-                    }).set_properties(**{
-                        'text-align': 'center',
-                        'font-size': '14px',
-                        'padding': '10px'
-                    }).set_table_styles([
-                        {
-                            'selector': 'thead th',
-                            'props': [
-                                ('background-color', '#667eea'),
-                                ('color', 'white'),
-                                ('font-weight', 'bold'),
-                                ('text-align', 'center'),
-                                ('padding', '12px'),
-                                ('border', '1px solid #ddd')
-                            ]
-                        },
-                        {
-                            'selector': 'tbody tr:nth-child(even)',
-                            'props': [('background-color', '#f8f9fa')]
-                        },
-                        {
-                            'selector': 'tbody tr:hover',
-                            'props': [('background-color', '#e3f2fd')]
-                        },
-                        {
-                            'selector': 'td',
-                            'props': [
-                                ('border', '1px solid #ddd'),
-                                ('padding', '8px')
-                            ]
-                        }
-                    ])
-                    
-                    st.write(styled_money_df.to_html(), unsafe_allow_html=True)
+                    st.table(money_data)
                 
                 with col_side_hustles:
                     # Side Hustles Analysis
@@ -636,250 +623,7 @@ def main():
         else:
             st.info(f"No responses found for the question: '{money_question}'")
         
-        # Monthly Travel Cost Analysis
-        try:
-            # Get monthly spending per commuter - using backend data
-            # First get all trip cost data from responses
-            trip_cost_data = responses[responses['q'] == 'How much did you pay for this trip?'].copy()
-            
-            if not trip_cost_data.empty:
-                # Process costs in Python (more reliable than complex SQL)
-                import re
-                processed_costs = []
                 
-                for _, row in trip_cost_data.iterrows():
-                    response_str = str(row['resp']).lower()
-                    cost = None
-                    
-                    # Handle ranges like "R61 to R70" - take midpoint
-                    range_match = re.search(r'r?(\d+)\s*to\s*r?(\d+)', response_str)
-                    if range_match:
-                        min_val = float(range_match.group(1))
-                        max_val = float(range_match.group(2))
-                        cost = (min_val + max_val) / 2
-                    
-                    # Handle "Less than R10" - use 5
-                    elif re.search(r'less\s+than\s+r?(\d+)', response_str):
-                        less_match = re.search(r'less\s+than\s+r?(\d+)', response_str)
-                        cost = float(less_match.group(1)) / 2
-                    
-                    # Handle "More than R70" - use 75
-                    elif re.search(r'more\s+than\s+r?(\d+)', response_str):
-                        more_match = re.search(r'more\s+than\s+r?(\d+)', response_str)
-                        cost = float(more_match.group(1)) + 5
-                    
-                    # Handle single numbers like "R50" or "50"
-                    else:
-                        single_match = re.search(r'r?(\d+)', response_str)
-                        if single_match:
-                            cost = float(single_match.group(1))
-                    
-                    if cost is not None and cost > 0:
-                        processed_costs.append({
-                            'pid': row['pid'],
-                            'ts': row['ts'],
-                            'cost': cost
-                        })
-                
-                if processed_costs:
-                    # Convert to DataFrame and process monthly data
-                    costs_df = pd.DataFrame(processed_costs)
-                    costs_df['ts'] = pd.to_datetime(costs_df['ts'])
-                    costs_df['month'] = costs_df['ts'].dt.to_period('M')
-                    
-                    # Calculate monthly spending per commuter
-                    monthly_spending = costs_df.groupby(['month', 'pid'])['cost'].sum().reset_index()
-                    monthly_costs = monthly_spending.groupby('month').agg({
-                        'pid': 'nunique',
-                        'cost': ['mean', 'sum', 'count']
-                    }).reset_index()
-                    
-                    # Flatten column names
-                    monthly_costs.columns = ['MONTH', 'unique_commuters', 'avg_monthly_spending_per_commuter', 'total_monthly_spending', 'total_trips']
-                    monthly_costs['MONTH'] = monthly_costs['MONTH'].astype(str)
-                    
-                    # Add month_name for display
-                    monthly_costs['month_name'] = monthly_costs['MONTH']
-                else:
-                    monthly_costs = pd.DataFrame()
-            else:
-                monthly_costs = pd.DataFrame()
-            
-            # Calculate weekly costs using the same processed data
-            if not trip_cost_data.empty and processed_costs:
-                # Calculate weekly spending per commuter using week number instead of period
-                costs_df['week_start'] = costs_df['ts'].dt.to_period('W').dt.start_time
-                
-                weekly_spending = costs_df.groupby(['week_start', 'pid'])['cost'].sum().reset_index()
-                weekly_costs = weekly_spending.groupby('week_start').agg({
-                    'pid': 'nunique',
-                    'cost': ['mean', 'sum', 'count']
-                }).reset_index()
-                
-                # Flatten column names
-                weekly_costs.columns = ['WEEK', 'unique_commuters', 'avg_weekly_spending_per_commuter', 'total_weekly_spending', 'total_trips']
-                weekly_costs['WEEK'] = weekly_costs['WEEK'].astype(str)
-                weekly_costs['week_name'] = weekly_costs['WEEK']
-            else:
-                weekly_costs = pd.DataFrame()
-            if not monthly_costs.empty or not weekly_costs.empty:
-                with st.container():
-                    st.markdown("#### Commuter Spending Analysis")
-                    
-                    # Add filters for this section
-                    filtered_spending = create_section_filters("Commuter Spending", responses)
-                    
-                    # Create tabs for monthly and weekly analysis
-                    tab1, tab2 = st.tabs(["📅 Monthly Analysis", "📊 Weekly Analysis"])
-                    
-                    with tab1:
-                        if not monthly_costs.empty:
-                            # Create two-column layout for monthly
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                # Monthly average spending per commuter
-                                fig_monthly = px.line(
-                                    monthly_costs,
-                                    x='month_name',
-                                    y='avg_monthly_spending_per_commuter',
-                                    title="Average Monthly Spending per Commuter",
-                                    labels={'avg_monthly_spending_per_commuter': 'Average Spending (R)', 'month_name': 'Month'},
-                                    markers=True
-                                )
-                                fig_monthly.update_layout(
-                                    height=400,
-                                    xaxis_tickangle=-45,
-                                    showlegend=False
-                                )
-                                st.plotly_chart(fig_monthly, use_container_width=True)
-                            
-                            with col2:
-                                # Monthly commuter count
-                                fig_commuters = px.bar(
-                                    monthly_costs,
-                                    x='month_name',
-                                    y='unique_commuters',
-                                    title="Number of Active Commuters",
-                                    labels={'unique_commuters': 'Number of Commuters', 'month_name': 'Month'},
-                                    color='unique_commuters',
-                                    color_continuous_scale='Viridis'
-                                )
-                                fig_commuters.update_layout(
-                                    height=400,
-                                    xaxis_tickangle=-45,
-                                    showlegend=False
-                                )
-                                st.plotly_chart(fig_commuters, use_container_width=True)
-                        else:
-                            st.info("No monthly data available.")
-                    
-                    with tab2:
-                        if not weekly_costs.empty:
-                            # Create two-column layout for weekly
-                            col3, col4 = st.columns(2)
-                            
-                            with col3:
-                                # Weekly average spending per commuter
-                                fig_weekly = px.line(
-                                    weekly_costs,
-                                    x='week_name',
-                                    y='avg_weekly_spending_per_commuter',
-                                    title="Average Weekly Spending per Commuter",
-                                    labels={'avg_weekly_spending_per_commuter': 'Average Spending (R)', 'week_name': 'Week'},
-                                    markers=True
-                                )
-                                fig_weekly.update_layout(
-                                    height=400,
-                                    xaxis_tickangle=-45,
-                                    showlegend=False
-                                )
-                                st.plotly_chart(fig_weekly, use_container_width=True)
-                            
-                            with col4:
-                                # Weekly commuter count
-                                fig_weekly_commuters = px.bar(
-                                    weekly_costs,
-                                    x='week_name',
-                                    y='unique_commuters',
-                                    title="Number of Active Commuters (Weekly)",
-                                    labels={'unique_commuters': 'Number of Commuters', 'week_name': 'Week'},
-                                    color='unique_commuters',
-                                    color_continuous_scale='Viridis'
-                                )
-                                fig_weekly_commuters.update_layout(
-                                    height=400,
-                                    xaxis_tickangle=-45,
-                                    showlegend=False
-                                )
-                                st.plotly_chart(fig_weekly_commuters, use_container_width=True)
-                        else:
-                            st.info("No weekly data available.")
-                    
-                    # Statistics section
-                    st.markdown("##### Commuter Spending Statistics")
-                    col5, col6, col7, col8 = st.columns(4)
-                    
-                    if not monthly_costs.empty:
-                        with col5:
-                            st.metric(
-                                title="Highest Monthly Avg per Commuter",
-                                content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].max():,.2f}"
-                            )
-                        
-                        with col6:
-                            st.metric(
-                                title="Lowest Monthly Avg per Commuter",
-                                content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].min():,.2f}"
-                            )
-                        
-                        with col7:
-                            st.metric(
-                                title="Overall Monthly Avg per Commuter",
-                                content=f"R {monthly_costs['avg_monthly_spending_per_commuter'].mean():,.2f}"
-                            )
-                        
-                        with col8:
-                            st.metric(
-                                title="Total Months",
-                                content=f"{len(monthly_costs)}"
-                            )
-                    
-                    if not weekly_costs.empty:
-                        st.markdown("##### Weekly Statistics")
-                        col9, col10, col11, col12 = st.columns(4)
-                        
-                        with col9:
-                            st.metric(
-                                title="Highest Weekly Avg per Commuter",
-                                content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].max():,.2f}"
-                            )
-                        
-                        with col10:
-                            st.metric(
-                                title="Lowest Weekly Avg per Commuter",
-                                content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].min():,.2f}"
-                            )
-                        
-                        with col11:
-                            st.metric(
-                                title="Overall Weekly Avg per Commuter",
-                                content=f"R {weekly_costs['avg_weekly_spending_per_commuter'].mean():,.2f}"
-                            )
-                        
-                        with col12:
-                            st.metric(
-                                title="Total Weeks",
-                                content=f"{len(weekly_costs)}"
-                            )
-            else:
-                st.info("No monthly travel cost data available.")
-                    
-        except Exception as e:
-            st.error(f"Monthly travel cost analysis error: {str(e)}")
-            import traceback
-            st.error(f"Full error details: {traceback.format_exc()}")
-        
     else:
         st.warning("⚠️ No data found or connection failed")
         st.info("The dashboard is working but couldn't retrieve data from your backend API.")

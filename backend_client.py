@@ -251,6 +251,7 @@ class BackendClient:
         try:
             # Try different possible endpoint variations
             endpoints_to_try = [
+                f"{_self.base_url}/api/brands-data",
                 f"{_self.base_url}/api/processed-survey-data-brands",
                 f"{_self.base_url}/api/brands",
                 f"{_self.base_url}/api/processed_survey_data_brands",
@@ -363,11 +364,11 @@ class BackendClient:
     def test_connection(self) -> bool:
         """Test if backend is accessible"""
         try:
-            response = self.session.get(f"{self.base_url}/health", timeout=10)
+            response = self.session.get(f"{self.base_url}/api/health", timeout=10)
             return response.status_code == 200
         except:
             try:
-                # Try root endpoint if /health doesn't exist
+                # Try root endpoint if /api/health doesn't exist
                 response = self.session.get(f"{self.base_url}/", timeout=10)
                 return response.status_code == 200
             except:
@@ -388,7 +389,7 @@ def get_backend_client():
                 raise Exception("Secrets not available")
         except Exception as secrets_error:
             # Fallback to hardcoded values for deployment
-            base_url = "https://ansebmrsurveysv1.oa.r.appspot.com"
+            base_url = "https://ansebmrsurveysv1.appspot.com"
             api_key = ""
         
         if not base_url:

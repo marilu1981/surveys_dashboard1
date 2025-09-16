@@ -10,113 +10,120 @@ from chart_utils import create_altair_chart
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
 from card_style import apply_card_styles
 
-def main():
-    st.title("Health Surveys Dashboard")
-    st.markdown("---")
-    apply_card_styles()
-    
-    # Date range filter at the top
-    st.markdown("### Date Range Filter")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        start_date = st.date_input("Start Date", value=None, key="health_start_date")
-    with col2:
-        end_date = st.date_input("End Date", value=None, key="health_end_date")
-    
-    # Fetch health data
-    health_data = None
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def load_health_data():
+    """Load and cache health data"""
     try:
         from backend_client import get_backend_client
         client = get_backend_client()
         if client:
             health_data = client.get_health_surveys()
             if health_data.empty:
-                st.warning("No health survey data available from backend")
-                health_data = None
+                return None
+            return health_data
         else:
             raise Exception("No backend connection")
     except Exception as e:
-        st.info("Using sample health data for demonstration")
-        health_data = None
+        return None
+
+@st.cache_data(ttl=300)
+def create_sample_data():
+    """Create and cache sample data"""
+    n_records = 1000
     
-    # Create sample data if no backend data available
-    if health_data is None or health_data.empty:
+    # Create arrays with exactly n_records elements
+    profile_ids = list(range(1, n_records + 1))
+    survey_titles = ['Health Survey 2024'] * n_records
+    
+    # Survey questions: 4 different questions, 250 each
+    survey_questions = (['How is your overall health?'] * 250 + 
+                      ['Do you exercise regularly?'] * 250 + 
+                      ['How many hours do you sleep?'] * 250 + 
+                      ['What is your stress level?'] * 250)
+    
+    # Responses: 4 response types for each question, 250 each
+    responses = (['Excellent'] * 250 + ['Good'] * 250 + ['Fair'] * 250 + ['Poor'] * 250)
+    
+    # Demographics: ensure exactly n_records
+    genders = ['Male', 'Female'] * 500
+    age_groups = ['18-25', '26-35', '36-45', '46-55', '56+'] * 200
+    monthly_salaries = ['0-5000', '5001-10000', '10001-20000', '20001+'] * 250
+    employment_statuses = ['Employed', 'Unemployed', 'Student', 'Retired'] * 250
+    timestamps = pd.date_range('2024-01-01', periods=n_records, freq='H')
+    
+    return pd.DataFrame({
+        'profile_id': profile_ids,
+        'survey_title': survey_titles,
+        'survey_question': survey_questions,
+        'response': responses,
+        'gender': genders,
+        'age_group': age_groups,
+        'monthly_salary': monthly_salaries,
+        'employment_status': employment_statuses,
+        'timestamp': timestamps
+    })
+
+def main():
+    st.title("Health Surveys Dashboard")
+    st.markdown("---")
+    apply_card_styles()
+    
+    # Fetch health data with caching
+    health_data = load_health_data()
+    
+    if health_data is None:
         st.info("Creating sample health data for demonstration")
-        # Create sample health data
-        n_records = 1000
-        
-        # Create arrays with exactly n_records elements
-        profile_ids = list(range(1, n_records + 1))
-        survey_titles = ['Health Survey 2024'] * n_records
-        
-        # Survey questions: 4 different questions, 250 each
-        survey_questions = (['How is your overall health?'] * 250 + 
-                          ['Do you exercise regularly?'] * 250 + 
-                          ['How many hours do you sleep?'] * 250 + 
-                          ['What is your stress level?'] * 250)
-        
-        # Responses: 4 response types for each question, 250 each
-        responses = (['Excellent'] * 250 + ['Good'] * 250 + ['Fair'] * 250 + ['Poor'] * 250)
-        
-        # Demographics: ensure exactly n_records
-        genders = ['Male', 'Female'] * 500
-        age_groups = ['18-25', '26-35', '36-45', '46-55', '56+'] * 200
-        monthly_salaries = ['0-5000', '5001-10000', '10001-20000', '20001+'] * 250
-        employment_statuses = ['Employed', 'Unemployed', 'Student', 'Retired'] * 250
-        timestamps = pd.date_range('2024-01-01', periods=n_records, freq='H')
-        
-        health_data = pd.DataFrame({
-            'profile_id': profile_ids,
-            'survey_title': survey_titles,
-            'survey_question': survey_questions,
-            'response': responses,
-            'gender': genders,
-            'age_group': age_groups,
-            'monthly_salary': monthly_salaries,
-            'employment_status': employment_statuses,
-            'timestamp': timestamps
-        })
+        health_data = create_sample_data()
+    
     
     if health_data is None or health_data.empty:
         st.error("No health data available")
         return
     
-    # Apply date filter if provided
-    if 'timestamp' in health_data.columns and (start_date or end_date):
-        health_data['date'] = pd.to_datetime(health_data['timestamp']).dt.date
-        if start_date:
-            health_data = health_data[health_data['date'] >= start_date]
-        if end_date:
-            health_data = health_data[health_data['date'] <= end_date]
     
-    # Key metrics
+    # Key metrics - cached calculation
+    @st.cache_data
+    def calculate_metrics(data):
+        profile_col = None
+        for col in ['PROFILE_ID', 'profile_id', 'pid', 'user_id', 'id']:
+            if col in data.columns:
+                profile_col = col
+                break
+        
+        question_col = None
+        for col in ['SURVEY_QUESTION', 'survey_question', 'question', 'q', 'survey_questions']:
+            if col in data.columns:
+                question_col = col
+                break
+        
+        return {
+            'total_responses': len(data),
+            'unique_profiles': data[profile_col].nunique() if profile_col else 0,
+            'unique_questions': data[question_col].nunique() if question_col else 0,
+            'profile_col': profile_col,
+            'question_col': question_col
+        }
+    
+    metrics = calculate_metrics(health_data)
+    
     st.markdown("### Key Metrics")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        total_responses = len(health_data)
-        st.metric("Total Responses", f"{total_responses:,}")
+        st.metric("Total Responses", f"{metrics['total_responses']:,}")
     
     with col2:
-        unique_profiles = health_data['profile_id'].nunique() if 'profile_id' in health_data.columns else 0
-        st.metric("Unique Profiles", f"{unique_profiles:,}")
+        st.metric("Unique Profiles", f"{metrics['unique_profiles']:,}")
+        if metrics['profile_col']:
+            st.caption(f"Using column: {metrics['profile_col']}")
     
     with col3:
-        unique_questions = health_data['survey_question'].nunique() if 'survey_question' in health_data.columns else 0
-        st.metric("Questions", f"{unique_questions:,}")
+        st.metric("Questions", f"{metrics['unique_questions']:,}")
+        if metrics['question_col']:
+            st.caption(f"Using column: {metrics['question_col']}")
     
-    with col4:
-        # Show date range
-        if 'timestamp' in health_data.columns:
-            dates = pd.to_datetime(health_data['timestamp'], errors='coerce').dropna()
-            if not dates.empty:
-                date_range = f"{dates.min().strftime('%Y-%m-%d')} to {dates.max().strftime('%Y-%m-%d')}"
-                st.metric("Date Range", date_range)
-            else:
-                st.metric("Date Range", "No Data")
-        else:
-            st.metric("Date Range", "No Data")
+    st.markdown("---")
+    
     
     st.markdown("---")
         
@@ -124,114 +131,183 @@ def main():
     with st.sidebar:
         st.header("Health Filters")
         
+        # Initialize session state for showing filters
+        if 'show_filters' not in st.session_state:
+            st.session_state.show_filters = False
+        
+        # Button to toggle filter visibility
+        if st.button("🔧 Toggle Filters", key="toggle_filters"):
+            st.session_state.show_filters = not st.session_state.show_filters
+        
+        # Always get the filter values, but conditionally show the controls
         # Survey title filter
-        if 'survey_title' in health_data.columns:
-            titles = health_data['survey_title'].unique()
-            selected_titles = st.multiselect("Choose surveys", options=titles, default=titles)
+        if 'SURVEY_TITLE' in health_data.columns:
+            titles = health_data['SURVEY_TITLE'].unique()
+            if st.session_state.show_filters:
+                selected_titles = st.multiselect("Choose surveys", options=titles, default=titles, key="survey_filter")
+            else:
+                selected_titles = titles.tolist()
         else:
             selected_titles = []
         
         # Demographics filters
-        if 'gender' in health_data.columns:
-            genders = health_data['gender'].unique()
-            selected_genders = st.multiselect("Gender", genders, default=genders)
+        if 'GENDER' in health_data.columns:
+            genders = health_data['GENDER'].unique()
+            if st.session_state.show_filters:
+                selected_genders = st.multiselect("Gender", genders, default=genders, key="gender_filter")
+            else:
+                selected_genders = genders.tolist()
         else:
             selected_genders = []
         
-        if 'age_group' in health_data.columns:
-            ages = health_data['age_group'].unique()
-            selected_ages = st.multiselect("Age group", ages, default=ages)
+        if 'AGE_GROUP' in health_data.columns:
+            ages = health_data['AGE_GROUP'].unique()
+            if st.session_state.show_filters:
+                selected_ages = st.multiselect("Age group", ages, default=ages, key="age_filter")
+            else:
+                selected_ages = ages.tolist()
         else:
             selected_ages = []
         
-        if 'monthly_salary' in health_data.columns:
-            salaries = health_data['monthly_salary'].unique()
-            selected_salaries = st.multiselect("Monthly salary", salaries, default=salaries)
+        if 'MONTHLY_SALARY' in health_data.columns:
+            salaries = health_data['MONTHLY_SALARY'].unique()
+            if st.session_state.show_filters:
+                selected_salaries = st.multiselect("Monthly salary", salaries, default=salaries, key="salary_filter")
+            else:
+                selected_salaries = salaries.tolist()
         else:
             selected_salaries = []
         
-        if 'employment_status' in health_data.columns:
-            employs = health_data['employment_status'].unique()
-            selected_employs = st.multiselect("Employment status", employs, default=employs)
+        if 'EMPLOYMENT_STATUS' in health_data.columns:
+            employs = health_data['EMPLOYMENT_STATUS'].unique()
+            if st.session_state.show_filters:
+                selected_employs = st.multiselect("Employment status", employs, default=employs, key="employment_filter")
+            else:
+                selected_employs = employs.tolist()
         else:
             selected_employs = []
+        
+        # Check if any filters are applied (not all data selected)
+        all_titles_selected = len(selected_titles) == len(health_data['SURVEY_TITLE'].unique()) if 'SURVEY_TITLE' in health_data.columns else True
+        all_genders_selected = len(selected_genders) == len(health_data['GENDER'].unique()) if 'GENDER' in health_data.columns else True
+        all_ages_selected = len(selected_ages) == len(health_data['AGE_GROUP'].unique()) if 'AGE_GROUP' in health_data.columns else True
+        all_salaries_selected = len(selected_salaries) == len(health_data['MONTHLY_SALARY'].unique()) if 'MONTHLY_SALARY' in health_data.columns else True
+        all_employs_selected = len(selected_employs) == len(health_data['EMPLOYMENT_STATUS'].unique()) if 'EMPLOYMENT_STATUS' in health_data.columns else True
+        
+        filters_applied = not (all_titles_selected and all_genders_selected and all_ages_selected and all_salaries_selected and all_employs_selected)
+        
+        if filters_applied:
+            st.info("🔍 Filters applied - showing filtered data")
+        else:
+            st.success("📊 Showing all data - no filters applied")
+            st.markdown("---")
+            st.markdown("**Available Filters:**")
+            st.markdown("• Survey Title")
+            st.markdown("• Gender") 
+            st.markdown("• Age Group")
+            st.markdown("• Monthly Salary")
+            st.markdown("• Employment Status")
+            st.markdown("")
+            st.markdown("*Click 'Toggle Filters' above to show/hide filter controls*")
     
-    # Apply filters
-    filtered_data = health_data.copy()
-    
-    if selected_titles and 'survey_title' in health_data.columns:
-        filtered_data = filtered_data[filtered_data['survey_title'].isin(selected_titles)]
-    
-    if selected_genders and 'gender' in health_data.columns:
-        filtered_data = filtered_data[filtered_data['gender'].isin(selected_genders)]
-    
-    if selected_ages and 'age_group' in health_data.columns:
-        filtered_data = filtered_data[filtered_data['age_group'].isin(selected_ages)]
-    
-    if selected_salaries and 'monthly_salary' in health_data.columns:
-        filtered_data = filtered_data[filtered_data['monthly_salary'].isin(selected_salaries)]
-    
-    if selected_employs and 'employment_status' in health_data.columns:
-        filtered_data = filtered_data[filtered_data['employment_status'].isin(selected_employs)]
+    # Apply filters with progress indicator
+    with st.spinner("Applying filters..."):
+        filtered_data = health_data.copy()
+        
+        if selected_titles and 'SURVEY_TITLE' in health_data.columns:
+            filtered_data = filtered_data[filtered_data['SURVEY_TITLE'].isin(selected_titles)]
+        
+        if selected_genders and 'GENDER' in health_data.columns:
+            filtered_data = filtered_data[filtered_data['GENDER'].isin(selected_genders)]
+        
+        if selected_ages and 'AGE_GROUP' in health_data.columns:
+            filtered_data = filtered_data[filtered_data['AGE_GROUP'].isin(selected_ages)]
+        
+        if selected_salaries and 'MONTHLY_SALARY' in health_data.columns:
+            filtered_data = filtered_data[filtered_data['MONTHLY_SALARY'].isin(selected_salaries)]
+        
+        if selected_employs and 'EMPLOYMENT_STATUS' in health_data.columns:
+            filtered_data = filtered_data[filtered_data['EMPLOYMENT_STATUS'].isin(selected_employs)]
     
     # Show filter info
     if len(filtered_data) < len(health_data):
         st.info(f"Showing {len(filtered_data):,} of {len(health_data):,} responses")
     
     # Question selection
-    if 'survey_question' in filtered_data.columns:
-        questions = filtered_data['survey_question'].unique()
+    question_col = None
+    for col in ['SURVEY_QUESTION', 'survey_question', 'question', 'q', 'survey_questions']:
+        if col in filtered_data.columns:
+            question_col = col
+            break
+    
+    if question_col:
+        questions = filtered_data[question_col].unique()
         if len(questions) > 0:
             selected_question = st.selectbox("Select a question to analyze:", questions)
             
             if selected_question:
                 # Filter data for selected question
-                question_data = filtered_data[filtered_data['survey_question'] == selected_question]
+                question_data = filtered_data[filtered_data[question_col] == selected_question]
                 
                 if not question_data.empty:
-                    # Response distribution
-                    response_counts = question_data['response'].value_counts()
+                    # Find response column
+                    response_col = None
+                    for col in ['RESPONSE', 'response', 'answer', 'a', 'responses']:
+                        if col in question_data.columns:
+                            response_col = col
+                            break
                     
-                    col1, col2 = st.columns([2, 1])
-                    
-                    with col1:
-                        st.subheader("Response Distribution")
+                    if response_col:
+                        # Response distribution
+                        response_counts = question_data[response_col].value_counts()
                         
-                        # Create response distribution table
-                        dist_data = []
-                        total_responses = len(question_data)
-                        for response, count in response_counts.items():
-                            percentage = (count / total_responses) * 100
-                            dist_data.append({
-                                'Response': response,
-                                'Count': f"{count:,}",
-                                'Percentage': f"{percentage:.1f}%"
-                            })
+                        col1, col2 = st.columns([2, 1])
                         
-                        dist_df = pd.DataFrame(dist_data)
-                        st.table(dist_df)
+                        with col1:
+                            st.subheader("Response Distribution")
+                            
+                            # Create response distribution table
+                            dist_data = []
+                            total_responses = len(question_data)
+                            for response, count in response_counts.items():
+                                percentage = (count / total_responses) * 100
+                                dist_data.append({
+                                    'Response': response,
+                                    'Count': f"{count:,}",
+                                    'Percentage': f"{percentage:.1f}%"
+                                })
+                            
+                            dist_df = pd.DataFrame(dist_data)
+                            st.table(dist_df)
+                            
+                            # Download button
+                            csv_data = dist_df.to_csv(index=False)
+                            st.download_button(
+                                "Download Response Distribution (CSV)",
+                                csv_data,
+                                f"health_response_distribution_{selected_question.replace(' ', '_')}.csv",
+                                "text/csv"
+                            )
                         
-                        # Download button
-                        csv_data = dist_df.to_csv(index=False)
-            st.download_button(
-                            "Download Response Distribution (CSV)",
-                            csv_data,
-                            f"health_response_distribution_{selected_question.replace(' ', '_')}.csv",
-                            "text/csv"
-                        )
-                    
-                    with col2:
-                        st.subheader("Visualization")
-                        
-                        # Create pie chart
-                        fig = px.pie(
-                            values=response_counts.values,
-                            names=response_counts.index,
-                            title=f"Response Distribution",
-                            color_discrete_sequence=px.colors.qualitative.Set3
-                        )
-                        fig.update_traces(textposition='inside', textinfo='percent+label')
-                        st.plotly_chart(fig, use_container_width=True)
+                        with col2:
+                            st.subheader("Visualization")
+                            
+                            # Create pie chart with optimized rendering
+                            fig = px.pie(
+                                values=response_counts.values,
+                                names=response_counts.index,
+                                title=f"Response Distribution",
+                                color_discrete_sequence=['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+                            )
+                            fig.update_traces(textposition='inside', textinfo='percent+label')
+                            fig.update_layout(
+                                showlegend=True,
+                                height=400,
+                                margin=dict(l=20, r=20, t=40, b=20)
+                            )
+                            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                    else:
+                        st.warning("No response column found in the data")
                     
                     # Crosstab analysis
                     st.subheader("Crosstab Analysis")
@@ -239,19 +315,31 @@ def main():
                     col1, col2, col3 = st.columns([2, 2, 1])
                     
                     with col1:
-                        # Available columns for crosstab
-                        available_cols = ['response', 'gender', 'age_group', 'monthly_salary', 'employment_status']
-                        available_cols = [col for col in available_cols if col in question_data.columns]
-                        row_col = st.selectbox("Rows", available_cols, index=0, key="health_row_col")
+                        # Available columns for crosstab - use detected column names
+                        available_cols = []
+                        if response_col:
+                            available_cols.append(response_col)
+                        for col in ['GENDER', 'AGE_GROUP', 'MONTHLY_SALARY', 'EMPLOYMENT_STATUS', 'gender', 'age_group', 'monthly_salary', 'employment_status']:
+                            if col in question_data.columns:
+                                available_cols.append(col)
+                        
+                        if available_cols:
+                            row_col = st.selectbox("Rows", available_cols, index=0, key="health_row_col")
+                        else:
+                            st.warning("No suitable columns for crosstab analysis")
+                            row_col = None
                     
                     with col2:
-                        col_col = st.selectbox("Columns", available_cols, index=1, key="health_col_col")
+                        if available_cols:
+                            col_col = st.selectbox("Columns", available_cols, index=1 if len(available_cols) > 1 else 0, key="health_col_col")
+                        else:
+                            col_col = None
                     
                     with col3:
                         show_mode = st.radio("Show", ["Counts", "% by column"], index=0, key="health_show_mode")
                     
                     # Create crosstab
-                    if row_col != col_col:
+                    if row_col and col_col and row_col != col_col:
                         try:
                             crosstab_data = pd.crosstab(
                                 question_data[row_col], 
@@ -259,17 +347,67 @@ def main():
                                 margins=True
                             )
                             
+                            # Create chart based on crosstab data
+                            st.markdown("#### Crosstab Chart")
+                            
+                            # Remove margins row for charting
+                            chart_data = crosstab_data.drop('All', errors='ignore')
+                            chart_data = chart_data.drop('All', axis=1, errors='ignore')
+                            
                             if show_mode == "% by column":
                                 # Convert to percentages by column
                                 crosstab_data = crosstab_data.div(crosstab_data.iloc[-1], axis=1) * 100
                                 crosstab_data = crosstab_data.round(1)
+                                
+                                # Create percentage chart - transpose for better visualization
+                                chart_data = crosstab_data.drop('All', errors='ignore')
+                                chart_data = chart_data.drop('All', axis=1, errors='ignore')
+                                
+                                # Transpose the data so columns become x-axis and rows become legend
+                                chart_data_transposed = chart_data.T
+                                
+                                # Create stacked bar chart for percentages
+                                fig = px.bar(
+                                    chart_data_transposed,
+                                    title=f"{col_col} vs {row_col} - Percentages",
+                                    labels={'value': 'Percentage (%)', 'index': col_col},
+                                    color_discrete_sequence=['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+                                )
+                                fig.update_layout(
+                                    xaxis_title=col_col,
+                                    yaxis_title="Percentage (%)",
+                                    height=500,
+                                    margin=dict(l=20, r=20, t=40, b=20)
+                                )
+                                fig.update_xaxes(tickangle=45)
+                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                                
                                 st.dataframe(crosstab_data.style.format("{:.1f}%"), use_container_width=True)
                             else:
+                                # Create count chart - transpose for better visualization
+                                chart_data_transposed = chart_data.T
+                                
+                                # Create stacked bar chart for counts
+                                fig = px.bar(
+                                    chart_data_transposed,
+                                    title=f"{col_col} vs {row_col} - Counts",
+                                    labels={'value': 'Count', 'index': col_col},
+                                    color_discrete_sequence=['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8']
+                                )
+                                fig.update_layout(
+                                    xaxis_title=col_col,
+                                    yaxis_title="Count",
+                                    height=500,
+                                    margin=dict(l=20, r=20, t=40, b=20)
+                                )
+                                fig.update_xaxes(tickangle=45)
+                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                                
                                 st.dataframe(crosstab_data.style.format("{:,}"), use_container_width=True)
                             
                             # Download crosstab
                             csv_data = crosstab_data.to_csv()
-            st.download_button(
+                            st.download_button(
                                 "Download Crosstab (CSV)",
                                 csv_data,
                                 f"health_crosstab_{row_col}_vs_{col_col}.csv",
@@ -287,38 +425,6 @@ def main():
     else:
         st.info("No survey question data available")
     
-    # Response trends over time
-    if 'timestamp' in filtered_data.columns:
-        st.markdown("### Response Trends Over Time")
-        
-        # Group by date and count responses
-        filtered_data['date'] = pd.to_datetime(filtered_data['timestamp']).dt.date
-        daily_counts = filtered_data.groupby('date').size().reset_index(name='responses')
-        
-        if not daily_counts.empty:
-            # Create trend chart
-            trend_data = pd.DataFrame({
-                'date': daily_counts['date'].astype(str),
-                'responses': daily_counts['responses']
-            })
-            
-            altair_chart = create_altair_chart(
-                trend_data,
-                'line',
-                'date',
-                'responses',
-                'Daily Health Survey Responses',
-                width=800,
-                height=300
-            )
-            
-            if altair_chart is not None:
-                st.altair_chart(altair_chart, use_container_width=True)
-            else:
-                st.info("Daily Response Counts (Altair not available)")
-                st.dataframe(trend_data, use_container_width=True)
-        else:
-            st.info("No valid date data available for trend analysis")
 
 if __name__ == "__main__":
     main()

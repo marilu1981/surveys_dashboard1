@@ -229,25 +229,25 @@ def show_home_page():
         - **SEM Groups**
         """)
 
-        with col2:
-            st.markdown("""
-            #### Survey Questions Dashboard
-            - **Shop Visitation Analysis**
-            - **Money Source Analysis**
-            - **Commuter Spending**
+    with col2:
+        st.markdown("""
+        #### Survey Questions Dashboard
+        - **Shop Visitation Analysis**
+        - **Money Source Analysis**
+        - **Commuter Spending**
 
-                #### 🏥 Health Surveys Dashboard
-                - **Health Status Analysis**
-                - **Exercise & Lifestyle**
-                - **Sleep Patterns**
+        #### 🏥 Health Surveys Dashboard
+        - **Health Status Analysis**
+        - **Exercise & Lifestyle**
+        - **Sleep Patterns**
 
-                #### 🏷️ Brands Analysis Dashboard
-                - **Brand Preference Analysis**
-                - **Shopping Behavior**
-                - **Customer Satisfaction**
+        #### 🏷️ Brands Analysis Dashboard
+        - **Brand Preference Analysis**
+        - **Shopping Behavior**
+        - **Customer Satisfaction**
 
-                **Last Updated**: `15-Sept-2025`
-            """)
+        **Last Updated**: `15-Sept-2025`
+        """)
 
     # Add trend chart if data is available
     try:

@@ -557,7 +557,7 @@ def get_backend_client():
                 raise Exception("Secrets not available")
         except Exception as secrets_error:
             # Fallback to hardcoded values for deployment
-            base_url = "https://ansebmrsurveysv1.appspot.com"
+            base_url = "https://ansebmrsurveysv1.oa.r.appspot.com"
             api_key = ""
         
         if not base_url:

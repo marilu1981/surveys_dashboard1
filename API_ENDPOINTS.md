@@ -1,8 +1,11 @@
 # 🚀 Survey Backend API Documentation
 
+## 🌐 Deployment Status
+✅ **LIVE & DEPLOYED** - All endpoints are available at the production URL below.
+
 ## Base URL
 ```
-http://localhost:3001
+https://ansebmrsurveysv1.oa.r.appspot.com
 ```
 
 ## 📊 Core Data Endpoints
@@ -31,7 +34,7 @@ Get overview of all surveys with response counts and metadata.
 **Frontend Usage:**
 ```javascript
 const getSurveySummary = async () => {
-  const response = await fetch('http://localhost:3001/api/survey-summary');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/survey-summary');
   return await response.json();
 };
 ```
@@ -59,7 +62,7 @@ Get all unique questions across surveys with survey mapping.
 **Frontend Usage:**
 ```javascript
 const getSurveyQuestions = async () => {
-  const response = await fetch('http://localhost:3001/api/survey-questions');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/survey-questions');
   return await response.json();
 };
 ```
@@ -112,7 +115,7 @@ Get filtered and paginated survey responses with advanced filtering options.
 ```javascript
 const getFilteredResponses = async (filters = {}) => {
   const params = new URLSearchParams(filters);
-  const response = await fetch(`http://localhost:3001/api/responses?${params}`);
+  const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com/api/responses?${params}`);
   return await response.json();
 };
 
@@ -158,7 +161,7 @@ Get data for a specific survey with optional full dataset.
 **Frontend Usage:**
 ```javascript
 const getSurveyData = async (surveyTitle, full = false) => {
-  const url = `http://localhost:3001/api/survey/${surveyTitle}${full ? '?full=true' : ''}`;
+  const url = `https://ansebmrsurveysv1.oa.r.appspot.com/api/survey/${surveyTitle}${full ? '?full=true' : ''}`;
   const response = await fetch(url);
   return await response.json();
 };
@@ -184,7 +187,7 @@ Get data for surveys with matching prefix.
 **Frontend Usage:**
 ```javascript
 const getSurveyGroupData = async (groupPrefix, full = false) => {
-  const url = `http://localhost:3001/api/survey-group/${groupPrefix}${full ? '?full=true' : ''}`;
+  const url = `https://ansebmrsurveysv1.oa.r.appspot.com/api/survey-group/${groupPrefix}${full ? '?full=true' : ''}`;
   const response = await fetch(url);
   return await response.json();
 };
@@ -217,7 +220,7 @@ Get lightweight index of all available surveys.
 **Frontend Usage:**
 ```javascript
 const getSurveyIndex = async () => {
-  const response = await fetch('http://localhost:3001/api/surveys');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/surveys');
   return await response.json();
 };
 ```
@@ -276,7 +279,7 @@ Get pre-computed demographics breakdown for dashboard.
 **Frontend Usage:**
 ```javascript
 const getDemographics = async () => {
-  const response = await fetch('http://localhost:3001/api/demographics');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/demographics');
   return await response.json();
 };
 ```
@@ -312,7 +315,7 @@ ts,title,q,resp,pid,gender,age_group,salary,employment,location,sem_segment
 **Frontend Usage:**
 ```javascript
 const exportProfileSurvey = async (format = 'json') => {
-  const response = await fetch(`http://localhost:3001/api/reporting/profile-survey?format=${format}`);
+  const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com/api/reporting/profile-survey?format=${format}`);
   
   if (format === 'csv') {
     const csvText = await response.text();
@@ -360,7 +363,7 @@ Get vocabulary mappings for form dropdowns and filters.
 **Frontend Usage:**
 ```javascript
 const getVocabulary = async () => {
-  const response = await fetch('http://localhost:3001/api/vocab');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/vocab');
   return await response.json();
 };
 
@@ -400,7 +403,7 @@ Get data schema documentation with field descriptions.
 **Frontend Usage:**
 ```javascript
 const getSchema = async () => {
-  const response = await fetch('http://localhost:3001/api/schema');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/schema');
   return await response.json();
 };
 ```
@@ -428,7 +431,7 @@ Check server status and performance metrics.
 **Frontend Usage:**
 ```javascript
 const checkHealth = async () => {
-  const response = await fetch('http://localhost:3001/api/health');
+  const response = await fetch('https://ansebmrsurveysv1.oa.r.appspot.com/api/health');
   return await response.json();
 };
 ```
@@ -451,7 +454,7 @@ const useSurveyData = () => {
     setError(null);
     
     try {
-      const response = await fetch(`http://localhost:3001${endpoint}`, options);
+      const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com${endpoint}`, options);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -561,7 +564,7 @@ const useChartData = (filters) => {
       setLoading(true);
       try {
         const params = new URLSearchParams(filters);
-        const response = await fetch(`http://localhost:3001/api/responses?${params}`);
+        const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com/api/responses?${params}`);
         const data = await response.json();
         
         // Process data for charts
@@ -637,4 +640,4 @@ All endpoints support CORS for frontend integration. No additional configuration
 
 **Last Updated:** January 2025  
 **API Version:** 1.0  
-**Base URL:** http://localhost:3001
+**Base URL:** https://ansebmrsurveysv1.oa.r.appspot.com

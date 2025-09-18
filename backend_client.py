@@ -69,6 +69,9 @@ class BackendClient:
         """Get cached responses with compression from your backend"""
         try:
             response = _self.session.get(f"{_self.base_url}/api/responses?limit={limit}")
+            if response.status_code == 500:
+                st.warning(f"⚠️ Backend server error (500) for /api/responses. This might be a temporary issue.")
+                return pd.DataFrame()
             response.raise_for_status()
             
             # Get response text
@@ -541,6 +544,20 @@ class BackendClient:
                 return response.status_code == 200
             except:
                 return False
+
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_survey_summary(_self) -> dict:
+        """Get survey summary from your backend"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/survey-summary")
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error fetching survey summary: {str(e)}")
+            return {}
+        except Exception as e:
+            st.error(f"Error parsing survey summary: {str(e)}")
+            return {}
 
 # Global backend client
 @st.cache_resource

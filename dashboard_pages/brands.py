@@ -115,7 +115,7 @@ def main():
         age_groups = ['18-25', '26-35', '36-45', '46-55', '56+'] * 200
         income_groups = ['Low', 'Medium', 'High'] * 333 + ['Low']  # 1000 total
         locations = ['Cape Town', 'Johannesburg', 'Durban', 'Pretoria', 'Port Elizabeth'] * 200
-        timestamps = pd.date_range('2024-01-01', periods=n_records, freq='H')
+        timestamps = pd.date_range('2024-01-01', periods=n_records, freq='h')
         
         brands_data = pd.DataFrame({
             'profile_id': profile_ids,
@@ -282,7 +282,7 @@ def main():
                             color_discrete_sequence=px.colors.qualitative.Set3
                         )
                         fig.update_traces(textposition='inside', textinfo='percent+label')
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     
                     # Crosstab analysis
                     st.subheader("Crosstab Analysis")
@@ -314,9 +314,9 @@ def main():
                                 # Convert to percentages by column
                                 crosstab_data = crosstab_data.div(crosstab_data.iloc[-1], axis=1) * 100
                                 crosstab_data = crosstab_data.round(1)
-                                st.dataframe(crosstab_data.style.format("{:.1f}%"), use_container_width=True)
+                                st.dataframe(crosstab_data.style.format("{:.1f}%"), width='stretch')
                             else:
-                                st.dataframe(crosstab_data.style.format("{:,}"), use_container_width=True)
+                                st.dataframe(crosstab_data.style.format("{:,}"), width='stretch')
                             
                             # Download crosstab
                             csv_data = crosstab_data.to_csv()
@@ -358,13 +358,13 @@ def main():
                     st.subheader("Brand Preferences by Gender")
                     if 'gender' in brand_data.columns:
                         brand_gender = pd.crosstab(brand_data['response'], brand_data['gender'])
-                        st.dataframe(brand_gender, use_container_width=True)
+                        st.dataframe(brand_gender, width='stretch')
                 
                 with col2:
                     st.subheader("Brand Preferences by Age Group")
                     if 'age_group' in brand_data.columns:
                         brand_age = pd.crosstab(brand_data['response'], brand_data['age_group'])
-                        st.dataframe(brand_age, use_container_width=True)
+                        st.dataframe(brand_age, width='stretch')
                 
                 # Brand preference chart
                 st.subheader("Brand Preference Distribution")
@@ -378,7 +378,7 @@ def main():
                     labels={'x': 'Number of Responses', 'y': 'Brand'}
                 )
                 fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
     
     # Response trends over time
     if 'timestamp' in filtered_data.columns:
@@ -406,10 +406,10 @@ def main():
             )
             
             if altair_chart is not None:
-                st.altair_chart(altair_chart, use_container_width=True)
+                st.altair_chart(altair_chart, width='stretch')
             else:
                 st.info("Daily Response Counts (Altair not available)")
-                st.dataframe(trend_data, use_container_width=True)
+                st.dataframe(trend_data, width='stretch')
         else:
             st.info("No valid date data available for trend analysis")
 

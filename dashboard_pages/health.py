@@ -58,7 +58,7 @@ def create_sample_data():
     age_groups = ['18-25', '26-35', '36-45', '46-55', '56+'] * 200
     monthly_salaries = ['0-5000', '5001-10000', '10001-20000', '20001+'] * 250
     employment_statuses = ['Employed', 'Unemployed', 'Student', 'Retired'] * 250
-    timestamps = pd.date_range('2024-01-01', periods=n_records, freq='H')
+    timestamps = pd.date_range('2024-01-01', periods=n_records, freq='h')
     
     return pd.DataFrame({
         'profile_id': profile_ids,
@@ -318,7 +318,7 @@ def main():
                                 height=400,
                                 margin=dict(l=20, r=20, t=40, b=20)
                             )
-                            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                            st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
                     else:
                         st.warning("No response column found in the data")
                     
@@ -393,9 +393,9 @@ def main():
                                     margin=dict(l=20, r=20, t=40, b=20)
                                 )
                                 fig.update_xaxes(tickangle=45)
-                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
                                 
-                                st.dataframe(crosstab_data.style.format("{:.1f}%"), use_container_width=True)
+                                st.dataframe(crosstab_data.style.format("{:.1f}%"), width='stretch')
                             else:
                                 # Create count chart - transpose for better visualization
                                 chart_data_transposed = chart_data.T
@@ -414,9 +414,9 @@ def main():
                                     margin=dict(l=20, r=20, t=40, b=20)
                                 )
                                 fig.update_xaxes(tickangle=45)
-                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
                                 
-                                st.dataframe(crosstab_data.style.format("{:,}"), use_container_width=True)
+                                st.dataframe(crosstab_data.style.format("{:,}"), width='stretch')
                             
                             # Download crosstab
                             csv_data = crosstab_data.to_csv()

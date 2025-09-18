@@ -107,7 +107,7 @@ def render_demographics_charts(data):
                 color_discrete_sequence=px.colors.qualitative.Vivid
             )
             fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     
     # Age group distribution
     with col2:
@@ -121,7 +121,7 @@ def render_demographics_charts(data):
                 color_continuous_scale=px.colors.sequential.Viridis
             )
             fig.update_layout(height=400, xaxis_title="Age Group", yaxis_title="Count")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     
     # Employment distribution
     employment_data = overall_demographics.get('employment', {})
@@ -137,7 +137,7 @@ def render_demographics_charts(data):
                 color_continuous_scale=px.colors.sequential.Plasma
             )
             fig.update_layout(height=400, xaxis_title="Employment Status", yaxis_title="Count")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         
         with col2:
             # Employment summary table
@@ -146,7 +146,7 @@ def render_demographics_charts(data):
                 {"Status": k, "Count": v, "Percentage": f"{(v/sum(employment_data.values())*100):.1f}%"}
                 for k, v in employment_data.items()
             ])
-            st.dataframe(employment_df, use_container_width=True)
+            st.dataframe(employment_df, width='stretch')
 
 def render_survey_analysis(data):
     """Render survey analysis from survey index"""
@@ -175,7 +175,7 @@ def render_survey_analysis(data):
             yaxis_title="Response Count",
             xaxis_tickangle=45
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     # Survey summary table
     st.markdown("#### Survey Summary")
@@ -187,7 +187,7 @@ def render_survey_analysis(data):
     if 'file_size_mb' in summary_df.columns:
         summary_df['file_size_mb'] = summary_df['file_size_mb'].round(2)
     
-    st.dataframe(summary_df, use_container_width=True)
+    st.dataframe(summary_df, width='stretch')
 
 def render_health_status(data):
     """Render health check status"""
@@ -232,7 +232,7 @@ def render_data_schema(data):
                 {"Field": field, "Description": description}
                 for field, description in fields.items()
             ])
-            st.dataframe(schema_df, use_container_width=True)
+            st.dataframe(schema_df, width='stretch')
 
 def main():
     st.title("🔍 Comprehensive Analytics Dashboard")
@@ -285,7 +285,7 @@ def main():
             if 'data' in filtered_data and filtered_data['data']:
                 st.markdown("#### Filtered Data Preview")
                 df = pd.DataFrame(filtered_data['data'])
-                st.dataframe(df.head(100), use_container_width=True)
+                st.dataframe(df.head(100), width='stretch')
                 
                 # Download button for filtered data
                 csv = df.to_csv(index=False)

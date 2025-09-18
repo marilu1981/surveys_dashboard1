@@ -279,11 +279,11 @@ def main():
                 )
                 
                 if altair_chart is not None:
-                    st.altair_chart(altair_chart, use_container_width=True)
+                    st.altair_chart(altair_chart, width='stretch')
                 else:
                     # Fallback to a simple table if Altair is not available
                     st.info("📊 Daily Response Counts (Altair not available)")
-                    st.dataframe(trend_data, use_container_width=True)
+                    st.dataframe(trend_data, width='stretch')
             else:
                 st.info("No valid date data available for trend analysis")
         else:
@@ -311,7 +311,7 @@ def main():
                             names=gender_dist.index, 
                             title=f"Sample Size: {total_gender_responses:,}"
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No gender data available (all values are null)")
         
@@ -337,7 +337,7 @@ def main():
                             xaxis_title="",
                             yaxis_title=""
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No age group data available (all values are null)")
         
@@ -363,7 +363,7 @@ def main():
                             title=f"Sample Size: {total_emp_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No employment data available (all values are null)")
         
@@ -382,7 +382,7 @@ def main():
                             title=f"Sample Size: {total_side_hustles_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No side hustles data available (all values are null)")
         
@@ -467,7 +467,7 @@ def main():
                             showlegend=False,
                             yaxis={'categoryorder': 'total ascending'}  # This ensures high to low ranking
                         )
-                        st.plotly_chart(fig_bar, use_container_width=True)
+                        st.plotly_chart(fig_bar, width='stretch')
                     else:
                         st.info("No province data could be mapped from location names.")
                         # Show original location data
@@ -485,7 +485,7 @@ def main():
                             showlegend=False,
                             xaxis_tickangle=-45
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
         
         # SEM Groups Analysis
         if 'sem_segment' in demographics_data.columns:
@@ -546,7 +546,7 @@ def main():
                         )
                         fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                         fig_pie.update_layout(font_size=12)
-                        st.plotly_chart(fig_pie, use_container_width=True)
+                        st.plotly_chart(fig_pie, width='stretch')
                     
                     with col2:
                         # Bar chart showing counts with sample size, ordered by SEM labels - no color coding
@@ -562,7 +562,7 @@ def main():
                             font_size=12,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_bar, use_container_width=True)
+                        st.plotly_chart(fig_bar, width='stretch')
                     
                     # Show detailed breakdown with better styling
                     st.markdown("##### SEM Groups Breakdown")
@@ -627,7 +627,7 @@ def main():
                         names=gender_dist.index, 
                         title=f"Gender Distribution (n={len(demographics_data):,})"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("No gender data available")
         
@@ -644,7 +644,7 @@ def main():
                         xaxis_title="Age Group",
                         yaxis_title="Count"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("No age group data available")
         

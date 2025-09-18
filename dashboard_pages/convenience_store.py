@@ -282,12 +282,12 @@ def main():
         # Rotate x-axis labels for better readability
         fig.update_xaxes(tickangle=45)
         
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
         
         # Summary table
         st.markdown("#### Summary Table")
         summary_table = response_counts.pivot(index='SURVEY_QUESTION', columns='RESPONSE', values='count').fillna(0)
-        st.dataframe(summary_table, use_container_width=True)
+        st.dataframe(summary_table, width='stretch')
     else:
         st.info("No response data available for visualization")
     

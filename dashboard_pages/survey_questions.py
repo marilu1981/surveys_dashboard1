@@ -31,7 +31,14 @@ def get_real_data():
         responses = client.get_responses()
         
         if responses.empty:
-            return None, None, None, None
+            # Fallback to survey index if responses endpoint fails
+            st.info("📊 Responses endpoint unavailable, trying survey index...")
+            survey_index = client.get_surveys_index()
+            if not survey_index.empty:
+                # Create a minimal responses-like structure from survey index
+                responses = survey_index
+            else:
+                return None, None, None, None
         
         # Get survey summary for analytics
         summary = client.get_survey_summary()
@@ -151,7 +158,7 @@ def main():
         
         # # Show sample data
         # st.markdown("#### 📋 Sample Data (First 5 rows)")
-        # st.dataframe(responses.head(), use_container_width=True)
+        # st.dataframe(responses.head(), width='stretch')
         
         # Debug: Show available survey questions
         if 'SURVEY_QUESTION' in responses.columns:
@@ -291,7 +298,7 @@ def main():
                             showlegend=False,
                             yaxis={'categoryorder': 'total ascending'}  # Rank high to low
                         )
-                        st.plotly_chart(fig_shops, use_container_width=True)
+                        st.plotly_chart(fig_shops, width='stretch')
                     
                     with col2:
                         # Show shop data table
@@ -397,7 +404,7 @@ def main():
                             yaxis_title="Number of Responses",
                             xaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_hist, use_container_width=True)
+                        st.plotly_chart(fig_hist, width='stretch')
                     
                     with col2:
                         # Box plot for cost distribution
@@ -414,7 +421,7 @@ def main():
                             yaxis_title="Cost (R)",
                             yaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_box, use_container_width=True)
+                        st.plotly_chart(fig_box, width='stretch')
                     
                     # Cost statistics cards
                     st.markdown("##### Trip Cost Statistics")
@@ -481,7 +488,7 @@ def main():
                         showlegend=False,
                         xaxis_tickangle=-45
                     )
-                    st.plotly_chart(fig_range, use_container_width=True)
+                    st.plotly_chart(fig_range, width='stretch')
                     
                     # Show detailed cost data table
                     st.markdown("##### Cost Range Breakdown")
@@ -549,7 +556,7 @@ def main():
                             x=1.01
                         )
                     )
-                    st.plotly_chart(fig_money_pie, use_container_width=True)
+                    st.plotly_chart(fig_money_pie, width='stretch')
                 
                 with col2:
                     # Horizontal bar chart for money sources
@@ -567,7 +574,7 @@ def main():
                         showlegend=False,
                         yaxis={'categoryorder': 'total ascending'}
                     )
-                    st.plotly_chart(fig_money_bar, use_container_width=True)
+                    st.plotly_chart(fig_money_bar, width='stretch')
                 
                 # Money source data table and Side Hustles chart
                 st.markdown("##### Money Source Breakdown")
@@ -617,7 +624,7 @@ def main():
                                 x=1.01
                             )
                         )
-                        st.plotly_chart(fig_side_hustles, use_container_width=True)
+                        st.plotly_chart(fig_side_hustles, width='stretch')
                     else:
                         st.info("No side hustles data available (all values are NaN)")
         else:

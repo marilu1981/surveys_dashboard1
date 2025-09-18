@@ -40,7 +40,7 @@ def create_sample_convenience_data():
     survey_id = 'TP005_Convinience_Store_Products_Survey_Briefing_Form'
     
     # Convenience store questions
-    questions = [
+    base_questions = [
         'How often do you visit convenience stores?',
         'What products do you buy most often?',
         'What is your average spending per visit?',
@@ -49,7 +49,8 @@ def create_sample_convenience_data():
         'Are you satisfied with convenience store prices?',
         'Do you use convenience store services?',
         'What would improve your convenience store experience?'
-    ] * (n_records // 8) + questions[:n_records % 8]
+    ]
+    questions = base_questions * (n_records // 8) + base_questions[:n_records % 8]
     
     # Responses for each question
     responses = []

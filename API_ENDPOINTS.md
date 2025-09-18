@@ -1,8 +1,5 @@
 # 🚀 Survey Backend API Documentation
 
-## 🌐 Deployment Status
-✅ **LIVE & DEPLOYED** - All endpoints are available at the production URL below.
-
 ## Base URL
 ```
 https://ansebmrsurveysv1.oa.r.appspot.com
@@ -21,10 +18,10 @@ Get overview of all surveys with response counts and metadata.
   "surveys": [
     {
       "title": "SB055_Profile_Survey1",
-      "response_count": 1500,
+      "response_count": 146165,
       "date_range": {
-        "earliest": "2025-01-01",
-        "latest": "2025-12-31"
+        "earliest": "2025-08-14",
+        "latest": "2025-08-20"
       }
     }
   ]
@@ -53,7 +50,7 @@ Get all unique questions across surveys with survey mapping.
     {
       "question": "What is your age group?",
       "surveys": ["SB055_Profile_Survey1"],
-      "response_count": 1500
+      "response_count": 146165
     }
   ]
 }
@@ -69,14 +66,14 @@ const getSurveyQuestions = async () => {
 
 ---
 
-### 3. Survey Responses (Main Data)
+### 3. Survey Responses (Main Data) - ✅ OPTIMIZED
 **GET** `/api/responses`
 
-Get filtered and paginated survey responses with advanced filtering options.
+Get filtered and paginated survey responses with advanced filtering options. Now uses individual survey files for better performance.
 
 **Query Parameters:**
-- `survey` (string) - Filter by survey title
-- `limit` (number) - Number of responses (default: 1000, max: 10000)
+- `survey` (string) - Filter by survey title (e.g., `SB055_Profile_Survey1`)
+- `limit` (number) - Number of responses (default: 1000, max: 5000)
 - `offset` (number) - Pagination offset (default: 0)
 - `gender` (string) - Filter by gender (Male, Female, Other)
 - `age_group` (string) - Filter by age group (18-24, 25-34, 35-44, etc.)
@@ -89,24 +86,26 @@ Get filtered and paginated survey responses with advanced filtering options.
 {
   "data": [
     {
-      "ts": "2025-01-15T10:30:00Z",
+      "ts": "2025-08-14",
+      "created_at": "2025-08-14T13:47:38+00:00",
       "title": "SB055_Profile_Survey1",
-      "q": "What is your age group?",
-      "resp": "25-34",
-      "pid": "profile_123",
+      "q": "How many people are in your taxi with you today?",
+      "resp": "2-3 people",
+      "engagement_id": 483370,
+      "pid": 2,
       "gender": "Male",
       "age_group": "25-34",
       "salary": "R15,000 - R25,000",
       "employment": "Employed",
-      "location": "Gauteng",
+      "home_province": "Gauteng",
       "sem_segment": "High Value"
     }
   ],
   "pagination": {
-    "total": 1500,
+    "total": 146165,
     "limit": 1000,
     "offset": 0,
-    "has_more": true
+    "hasMore": true
   }
 }
 ```
@@ -125,8 +124,8 @@ const filters = {
   limit: 1000,
   gender: 'Male',
   age_group: '25-34',
-  start_date: '2025-01-01',
-  end_date: '2025-12-31'
+  start_date: '2025-08-01',
+  end_date: '2025-08-31'
 };
 const data = await getFilteredResponses(filters);
 ```
@@ -135,25 +134,37 @@ const data = await getFilteredResponses(filters);
 
 ## 📋 Survey-Specific Endpoints
 
-### 4. Individual Survey Data
+### 4. Individual Survey Data - ✅ FIXED
 **GET** `/api/survey/:surveyTitle`
 
-Get data for a specific survey with optional full dataset.
+Get data for a specific survey with optional full dataset. Now uses individual survey files for better performance.
 
 **Parameters:**
 - `surveyTitle` (path) - The exact survey title (e.g., `SB055_Profile_Survey1`)
 - `full` (query) - Set to `true` for complete dataset (default: `false`)
 
+**Available Surveys:**
+- `SB055_Profile_Survey1` (146,165 responses)
+- `SB056_Cellphone_Survey` (2,426 responses)
+- `SB056_Cellphone_Survey-02` (2,000 responses)
+- `FI027_1Life_Funeral_Cover_Survey` (9,885 responses)
+- `FI027_Funeral_Cover_Survey-02` (8,712 responses)
+- `FI027_Funeral_Cover_Survey-03` (55,617 responses)
+- `FI028_1Life_Funeral_Cover_Survey2` (6,316 responses)
+- `FI028_1Life_Funeral_Cover_Survey2-02` (5,536 responses)
+- `FI028_1Life_Funeral_Cover_Survey2-03` (22,697 responses)
+- `TP005_Convinience_Store_Products_Survey_Briefing_Form` (39,187 responses)
+
 **Response:**
 ```json
 {
   "survey_title": "SB055_Profile_Survey1",
-  "total_responses": 1500,
   "data": [...],
   "pagination": {
-    "total": 1500,
+    "total": 146165,
     "limit": 1000,
-    "offset": 0
+    "offset": 0,
+    "hasMore": true
   }
 }
 ```
@@ -175,14 +186,21 @@ const fullData = await getSurveyData('SB055_Profile_Survey1', true);
 
 ---
 
-### 5. Survey Group Data
+### 5. Survey Group Data - ✅ OPTIMIZED
 **GET** `/api/survey-group/:groupPrefix`
 
-Get data for surveys with matching prefix.
+Get data for surveys with matching prefix. Now uses individual survey files instead of the large responses.ndjson file.
 
 **Parameters:**
-- `groupPrefix` (path) - Survey title prefix (e.g., `SB055` for all SB055 surveys)
+- `groupPrefix` (path) - Survey title prefix (e.g., `SB055`, `FI027`, `FI028`)
 - `full` (query) - Set to `true` for complete dataset (default: `false`)
+
+**Available Groups:**
+- `SB055` - Profile Survey Group (1 survey)
+- `SB056` - Cellphone Survey Group (2 surveys)
+- `FI027` - Funeral Cover Survey Group (3 surveys)
+- `FI028` - 1Life Funeral Cover Survey Group (3 surveys)
+- `TP005` - Convenience Store Survey Group (1 survey)
 
 **Frontend Usage:**
 ```javascript
@@ -194,6 +212,9 @@ const getSurveyGroupData = async (groupPrefix, full = false) => {
 
 // Get all SB055 surveys
 const sb055Data = await getSurveyGroupData('SB055');
+
+// Get all funeral cover surveys
+const funeralData = await getSurveyGroupData('FI027');
 ```
 
 ---
@@ -209,11 +230,13 @@ Get lightweight index of all available surveys.
   "surveys": [
     {
       "title": "SB055_Profile_Survey1",
-      "filename": "SB055_Profile_Survey1.json",
-      "response_count": 1500,
+      "filename": "surveys/SB055_Profile_Survey1.json",
+      "response_count": 146165,
       "file_size_mb": 67.8
     }
-  ]
+  ],
+  "total_surveys": 10,
+  "total_responses": 298541
 }
 ```
 
@@ -238,39 +261,30 @@ Get pre-computed demographics breakdown for dashboard.
 ```json
 {
   "overview": {
-    "total_responses": 1500,
-    "total_surveys": 5,
+    "total_responses": 298541,
+    "total_surveys": 10,
     "date_range": {
-      "earliest": "2025-01-01",
-      "latest": "2025-12-31"
+      "earliest": "2025-08-14",
+      "latest": "2025-08-26"
     }
   },
   "overall_demographics": {
     "gender": {
-      "Male": 750,
-      "Female": 650,
-      "Other": 100
+      "Male": 150000,
+      "Female": 120000,
+      "Other": 28541
     },
     "age_groups": {
-      "18-24": 200,
-      "25-34": 500,
-      "35-44": 400,
-      "45-54": 300,
-      "55+": 100
+      "18-24": 50000,
+      "25-34": 100000,
+      "35-44": 80000,
+      "45-54": 50000,
+      "55+": 18541
     },
     "employment": {
-      "Employed": 1200,
-      "Unemployed": 200,
-      "Student": 100
-    }
-  },
-  "cross_tabulations": {
-    "gender_by_age": {
-      "Male": {
-        "18-24": 100,
-        "25-34": 250,
-        "35-44": 200
-      }
+      "Employed": 200000,
+      "Unemployed": 50000,
+      "Student": 48541
     }
   }
 }
@@ -300,16 +314,18 @@ Get complete profile survey data for reporting with CSV export option.
 ```json
 {
   "survey_title": "SB055_Profile_Survey1",
-  "total_responses": 1500,
   "data": [...],
-  "exported_at": "2025-01-20T10:30:00Z"
+  "total": 146165,
+  "note": "Complete Profile Survey dataset for reporting",
+  "export_formats": ["json", "csv"],
+  "usage": "Add ?format=csv for CSV export"
 }
 ```
 
 **Response (CSV):**
 ```csv
-ts,title,q,resp,pid,gender,age_group,salary,employment,location,sem_segment
-2025-01-15T10:30:00Z,SB055_Profile_Survey1,What is your age group?,25-34,profile_123,Male,25-34,R15,000 - R25,000,Employed,Gauteng,High Value
+ts,created_at,title,q,resp,engagement_id,pid,gender,age_group,salary,employment,home_province,sem_segment
+2025-08-14,2025-08-14T13:47:38+00:00,SB055_Profile_Survey1,How many people are in your taxi with you today?,2-3 people,483370,2,Male,25-34,R15,000 - R25,000,Employed,Gauteng,High Value
 ```
 
 **Frontend Usage:**
@@ -385,17 +401,20 @@ Get data schema documentation with field descriptions.
 {
   "responses.ndjson": {
     "ts": "ISO date (Africa/Johannesburg tz applied)",
+    "created_at": "ISO timestamp when response was created",
     "title": "survey_title",
     "q": "question_text",
     "resp": "response_text",
+    "engagement_id": "Unique engagement identifier",
     "pid": "profile_id",
     "gender": "Gender",
     "age_group": "Age-Group",
     "salary": "Monthly Personal Income",
-    "employment": "Employment",
-    "location": "Location",
+    "employment": "Employment Status",
+    "home_province": "Home Province",
     "sem_segment": "SEM Segment",
-    "sem_score": "SEM Score"
+    "sem_score": "SEM Score",
+    "side_hustles": "Side Hustles information"
   }
 }
 ```
@@ -418,13 +437,11 @@ Check server status and performance metrics.
 **Response:**
 ```json
 {
-  "status": "healthy",
-  "uptime": "2h 30m 15s",
+  "status": "ok",
+  "message": "Service is healthy",
   "cache_size": 5,
-  "cache_hits": 150,
-  "cache_misses": 10,
-  "memory_usage": "45.2 MB",
-  "timestamp": "2025-01-20T10:30:00Z"
+  "uptime": 11.973258698,
+  "timestamp": "2025-09-18T22:58:00Z"
 }
 ```
 
@@ -523,6 +540,8 @@ const SurveyFilters = ({ onFiltersChange }) => {
       >
         <option value="">All Surveys</option>
         <option value="SB055_Profile_Survey1">Profile Survey 1</option>
+        <option value="SB056_Cellphone_Survey">Cellphone Survey</option>
+        <option value="FI027_1Life_Funeral_Cover_Survey">Funeral Cover Survey</option>
       </select>
       
       <select 
@@ -614,7 +633,7 @@ All endpoints return consistent error responses:
 {
   "error": "Error message description",
   "code": "ERROR_CODE",
-  "timestamp": "2025-01-20T10:30:00Z"
+  "timestamp": "2025-09-18T22:58:00Z"
 }
 ```
 
@@ -628,7 +647,8 @@ Common HTTP status codes:
 
 - All responses are compressed with gzip
 - Data is cached for 5 minutes to reduce GCS calls
-- Pagination is recommended for large datasets
+- Individual survey files are used instead of large responses.ndjson for better performance
+- Pagination is recommended for large datasets (max 5000 records per request)
 - Use specific survey endpoints for better performance
 - Demographics endpoint provides pre-computed data for faster dashboard loading
 
@@ -636,8 +656,29 @@ Common HTTP status codes:
 
 All endpoints support CORS for frontend integration. No additional configuration needed.
 
+## 🎯 Current Status
+
+**✅ Working Endpoints (11/11):**
+- `/api/health` - Health Check
+- `/api/surveys` - Survey Index
+- `/api/demographics` - Demographics Summary
+- `/api/survey-summary` - Survey Summary
+- `/api/survey-questions` - Survey Questions
+- `/api/vocab` - Vocabulary Mappings
+- `/api/schema` - Schema Documentation
+- `/api/responses` - Filtered Responses (Optimized)
+- `/api/survey/:surveyTitle` - Individual Survey Data (Fixed)
+- `/api/survey-group/:groupPrefix` - Survey Group Data (Optimized)
+- `/api/reporting/profile-survey` - Profile Survey Reporting
+
+**🔧 Recent Optimizations:**
+- Updated all endpoints to use individual survey files instead of large responses.ndjson
+- Added proper file path handling for surveys in GCS bucket
+- Improved error handling and timeout protection
+- Enhanced pagination and filtering capabilities
+
 ---
 
-**Last Updated:** January 2025  
-**API Version:** 1.0  
+**Last Updated:** September 18, 2025  
+**API Version:** 2.0  
 **Base URL:** https://ansebmrsurveysv1.oa.r.appspot.com

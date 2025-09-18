@@ -65,35 +65,43 @@ class BackendClient:
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_responses(_self, survey: str = None, limit: int = 100) -> pd.DataFrame:
-        """Get cached responses with compression from your backend - now requires survey parameter"""
+    def get_responses(_self, survey: str, limit: int = 1000, **filters) -> pd.DataFrame:
+        """Get cached responses with compression from your backend - REQUIRES survey parameter"""
         try:
-            if survey:
-                # Use optimized endpoint with specific survey
-                response = _self.session.get(f"{_self.base_url}/api/responses?survey={survey}&limit={limit}")
-            else:
-                # Fallback to general endpoint (may not work with new architecture)
-                response = _self.session.get(f"{_self.base_url}/api/responses?limit={limit}")
+            # Build query parameters
+            params = {'survey': survey, 'limit': limit}
+            params.update(filters)
+            
+            # Use optimized endpoint with specific survey (REQUIRED)
+            response = _self.session.get(f"{_self.base_url}/api/responses", params=params)
             
             if response.status_code == 500:
-                st.warning(f"⚠️ Backend server error (500) for /api/responses. Try specifying a survey parameter.")
+                st.warning(f"⚠️ Backend server error (500) for /api/responses. Survey parameter is required.")
                 return pd.DataFrame()
+            elif response.status_code == 400:
+                st.warning(f"⚠️ Bad request (400) for /api/responses. Check survey parameter: {survey}")
+                return pd.DataFrame()
+            
             response.raise_for_status()
             
-            # Get response text
-            response_text = response.text
+            # Parse the new API response structure
+            data = response.json()
             
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                # First try normal JSON parsing
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
+            # Handle the new API format with data and pagination
+            if isinstance(data, dict) and 'data' in data:
+                df = pd.DataFrame(data['data'])
+                # Store pagination info for potential future use
+                if 'pagination' in data:
+                    st.session_state[f'pagination_{survey}'] = data['pagination']
+                return df
+            elif isinstance(data, list):
+                # Fallback for direct list format
+                return pd.DataFrame(data)
+            else:
+                st.warning(f"⚠️ Unexpected response format from /api/responses")
+                return pd.DataFrame()
+                
+        except json.JSONDecodeError as json_err:
                 # If that fails, try to parse multiple JSON objects
                 try:
                     # Try different approaches to parse concatenated JSON

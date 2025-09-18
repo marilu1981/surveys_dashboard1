@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from backend_client import get_backend_client
 import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from backend_client import get_backend_client
 from chart_utils import create_altair_chart
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
 from card_style import apply_card_styles

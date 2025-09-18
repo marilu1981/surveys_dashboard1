@@ -27,8 +27,9 @@ def get_real_data():
         return None, None, None, None
     
     try:
-        # Get responses data from your backend (same as demographics page)
-        responses = client.get_responses()
+        # Get responses data from your backend using optimized endpoint
+        # Try to get Profile Survey data first (most comprehensive)
+        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=1000)
         
         if responses.empty:
             # Fallback to survey index if responses endpoint fails

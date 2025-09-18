@@ -13,13 +13,24 @@
 
 ## 🚨 **CRITICAL UPDATE - Post Optimization Status:**
 
-**Despite backend optimizations, the main issues persist:**
+**Backend optimizations have been implemented with new architecture:**
 
-- ❌ **`/api/responses` endpoint** - Still returning 500 errors
-- ❌ **Survey group endpoints** - Still returning 502 Bad Gateway errors  
-- ❌ **Individual survey endpoints** - Still returning 500 errors
-- ✅ **Profile Survey** - Working (146,165 responses loaded successfully)
-- ⚠️ **Other dashboards** - Falling back to sample data due to backend errors
+### ✅ **Cost-Optimized Endpoints (Working):**
+- `/api/health` - No data processing
+- `/api/surveys` - Lightweight index (1.7KB)
+- `/api/demographics` - Pre-computed summary
+- `/api/survey-summary` - Cached summary
+- `/api/survey-questions` - Cached questions
+- `/api/vocab` - Cached vocabulary
+- `/api/schema` - Cached schema
+- `/api/survey/:title` - Individual survey files only
+- `/api/reporting/profile-survey` - Single survey file
+
+### 🔧 **Optimized Endpoints (New Architecture):**
+- `/api/responses?survey=X` - Only loads specified survey (instead of all data)
+- `/api/survey-group/:prefix` - Smart pagination with size limits
+
+**Key Improvement:** The `/api/responses` endpoint now requires a `survey` parameter to load specific survey data instead of trying to load all responses at once.
 
 ## ✅ Working Endpoints (9/22)
 

@@ -65,12 +65,18 @@ class BackendClient:
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_responses(_self, limit: int = 100) -> pd.DataFrame:
-        """Get cached responses with compression from your backend"""
+    def get_responses(_self, survey: str = None, limit: int = 100) -> pd.DataFrame:
+        """Get cached responses with compression from your backend - now requires survey parameter"""
         try:
-            response = _self.session.get(f"{_self.base_url}/api/responses?limit={limit}")
+            if survey:
+                # Use optimized endpoint with specific survey
+                response = _self.session.get(f"{_self.base_url}/api/responses?survey={survey}&limit={limit}")
+            else:
+                # Fallback to general endpoint (may not work with new architecture)
+                response = _self.session.get(f"{_self.base_url}/api/responses?limit={limit}")
+            
             if response.status_code == 500:
-                st.warning(f"⚠️ Backend server error (500) for /api/responses. This might be a temporary issue.")
+                st.warning(f"⚠️ Backend server error (500) for /api/responses. Try specifying a survey parameter.")
                 return pd.DataFrame()
             response.raise_for_status()
             

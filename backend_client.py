@@ -23,10 +23,10 @@ class BackendClient:
             })
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_survey_summary(_self) -> pd.DataFrame:
-        """Get survey summary from your backend"""
+    def get_surveys_index(_self) -> pd.DataFrame:
+        """Get lightweight survey index (1.3KB) from your backend"""
         try:
-            response = _self.session.get(f"{_self.base_url}/api/survey-summary")
+            response = _self.session.get(f"{_self.base_url}/api/surveys")
             response.raise_for_status()
             
             # Try to parse JSON - handle multiple JSON objects
@@ -65,10 +65,10 @@ class BackendClient:
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_responses(_self) -> pd.DataFrame:
-        """Get survey responses from your backend"""
+    def get_responses(_self, limit: int = 100) -> pd.DataFrame:
+        """Get cached responses with compression from your backend"""
         try:
-            response = _self.session.get(f"{_self.base_url}/api/responses")
+            response = _self.session.get(f"{_self.base_url}/api/responses?limit={limit}")
             response.raise_for_status()
             
             # Get response text
@@ -197,10 +197,112 @@ class BackendClient:
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_health_surveys(_self) -> pd.DataFrame:
-        """Get health surveys data from your backend"""
+    def get_individual_survey(_self, survey_id: str, limit: int = 100, full: bool = False) -> pd.DataFrame:
+        """Get individual survey data from your backend"""
         try:
-            response = _self.session.get(f"{_self.base_url}/api/health-surveys")
+            if full:
+                response = _self.session.get(f"{_self.base_url}/api/survey/{survey_id}?full=true")
+            else:
+                response = _self.session.get(f"{_self.base_url}/api/survey/{survey_id}?limit={limit}")
+            response.raise_for_status()
+            
+            # Try to parse JSON - handle multiple JSON objects
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    return pd.DataFrame(data)
+                elif isinstance(data, dict) and 'data' in data:
+                    return pd.DataFrame(data['data'])
+                else:
+                    return pd.DataFrame()
+            except json.JSONDecodeError as json_err:
+                # Handle multiple JSON objects like in get_responses
+                response_text = response.text
+                if '} {' in response_text:
+                    json_objects = response_text.split('} {')
+                    if len(json_objects) > 1:
+                        json_objects[0] = json_objects[0] + '}'
+                        json_objects[-1] = '{' + json_objects[-1]
+                        
+                        parsed_objects = []
+                        for json_str in json_objects:
+                            try:
+                                parsed_objects.append(json.loads(json_str))
+                            except json.JSONDecodeError:
+                                continue
+                        
+                        if parsed_objects:
+                            return pd.DataFrame(parsed_objects)
+                
+                # If all else fails, try to parse as CSV
+                try:
+                    from io import StringIO
+                    return pd.read_csv(StringIO(response_text))
+                except:
+                    pass
+                
+                return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            return pd.DataFrame()
+        except Exception as e:
+            return pd.DataFrame()
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_survey_group(_self, group_id: str, full: bool = True) -> pd.DataFrame:
+        """Get survey group data (combines all surveys in a group) from your backend"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/survey-group/{group_id}?full={str(full).lower()}")
+            response.raise_for_status()
+            
+            # Try to parse JSON - handle multiple JSON objects
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    return pd.DataFrame(data)
+                elif isinstance(data, dict) and 'data' in data:
+                    return pd.DataFrame(data['data'])
+                else:
+                    return pd.DataFrame()
+            except json.JSONDecodeError as json_err:
+                # Handle multiple JSON objects like in get_responses
+                response_text = response.text
+                if '} {' in response_text:
+                    json_objects = response_text.split('} {')
+                    if len(json_objects) > 1:
+                        json_objects[0] = json_objects[0] + '}'
+                        json_objects[-1] = '{' + json_objects[-1]
+                        
+                        parsed_objects = []
+                        for json_str in json_objects:
+                            try:
+                                parsed_objects.append(json.loads(json_str))
+                            except json.JSONDecodeError:
+                                continue
+                        
+                        if parsed_objects:
+                            return pd.DataFrame(parsed_objects)
+                
+                # If all else fails, try to parse as CSV
+                try:
+                    from io import StringIO
+                    return pd.read_csv(StringIO(response_text))
+                except:
+                    pass
+                
+                return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            return pd.DataFrame()
+        except Exception as e:
+            return pd.DataFrame()
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_health_surveys(_self, limit: int = 100) -> pd.DataFrame:
+        """Get health surveys data using the individual survey endpoint"""
+        try:
+            # Try to get health survey data using the new individual survey endpoint
+            response = _self.session.get(f"{_self.base_url}/api/survey/SB055_Profile_Survey1?limit={limit}")
             response.raise_for_status()
             
             # Try to parse JSON - handle multiple JSON objects
@@ -361,11 +463,77 @@ class BackendClient:
             st.error(f"Error fetching survey questions: {str(e)}")
             return pd.DataFrame()
     
+    @st.cache_data(ttl=60)  # Cache for 1 minute
+    def get_health_check(_self) -> Dict[str, Any]:
+        """Get health check with cache monitoring from your backend"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/health", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_demographics(_self) -> Dict[str, Any]:
+        """Get pre-computed demographics breakdown for dashboard"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/demographics")
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    @st.cache_data(ttl=3600)  # Cache for 1 hour (vocabulary doesn't change often)
+    def get_vocabulary(_self) -> Dict[str, Any]:
+        """Get vocabulary mappings for form dropdowns and filters"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/vocab")
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    @st.cache_data(ttl=3600)  # Cache for 1 hour (schema doesn't change often)
+    def get_schema(_self) -> Dict[str, Any]:
+        """Get data schema documentation with field descriptions"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/schema")
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_filtered_responses(_self, filters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Get filtered and paginated survey responses with advanced filtering options"""
+        try:
+            params = {}
+            if filters:
+                # Convert filters to query parameters
+                for key, value in filters.items():
+                    if value is not None and value != '':
+                        params[key] = str(value)
+            
+            response = _self.session.get(f"{_self.base_url}/api/responses", params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def export_profile_survey_csv(_self) -> str:
+        """Export profile survey data as CSV"""
+        try:
+            response = _self.session.get(f"{_self.base_url}/api/reporting/profile-survey?format=csv")
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            return f"Error exporting CSV: {str(e)}"
+    
     def test_connection(self) -> bool:
         """Test if backend is accessible"""
         try:
-            response = self.session.get(f"{self.base_url}/api/health", timeout=10)
-            return response.status_code == 200
+            health_data = self.get_health_check()
+            return health_data.get("status") != "error"
         except:
             try:
                 # Try root endpoint if /api/health doesn't exist

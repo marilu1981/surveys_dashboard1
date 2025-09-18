@@ -27,14 +27,21 @@ def get_real_data():
         return None, None, None, None, None
     
     try:
-        # Get responses data from your backend
+        # Try to get pre-computed demographics data first
+        demographics_data = client.get_demographics()
+        
+        if demographics_data and "error" not in demographics_data:
+            # Use pre-computed demographics data
+            return demographics_data, None, None, None, None
+        
+        # Fallback to responses data if demographics endpoint not available
         responses = client.get_responses()
         
         if responses.empty:
             return None, None, None, None, None
         
         # Get survey summary for analytics
-        summary = client.get_survey_summary()
+        summary = client.get_surveys_index()
         
         # Create proper analytics from the responses data
         survey_ids = ['Backend Data']  # Placeholder

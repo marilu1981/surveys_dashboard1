@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import sys
 import os
+from urllib.parse import urlparse
 
 # Add the dashboard_pages directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'dashboard_pages'))
@@ -12,8 +13,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'styles'))
 
 # Import our new modules
 from card_style import apply_card_styles, create_metric_card
-from dashboard import create_metrics_dashboard
 from chart_utils import create_altair_chart
+
+# Image service removed
 
 # Import the page functions (lazy loading to prevent startup crashes)
 # from demographics import main as demographics_main
@@ -23,7 +25,7 @@ from chart_utils import create_altair_chart
 # Page configuration
 st.set_page_config(
     page_title="Sebenza Surveys Dashboard",
-    page_icon="📊",
+    page_icon="🚕",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -81,7 +83,7 @@ def main():
         st.session_state.current_page = 'home'
     
     # Sidebar navigation
-    st.sidebar.title("📊 Sebenza Surveys Dashboard")
+    st.sidebar.title("Sebenza Surveys Dashboard")
     st.sidebar.markdown("---")
 
     
@@ -98,13 +100,37 @@ def main():
         st.session_state.current_page = 'survey_questions'
         st.rerun()
     
-    if st.sidebar.button("🏥 Health Surveys", key="health", width="stretch"):
+    if st.sidebar.button("Health Surveys", key="health", width="stretch"):
         st.session_state.current_page = 'health'
         st.rerun()
     
-    if st.sidebar.button("🏷️ Brands Analysis", key="brands", width="stretch"):
+    if st.sidebar.button("Brands Analysis", key="brands", width="stretch"):
         st.session_state.current_page = 'brands'
         st.rerun()
+    
+    if st.sidebar.button("Profile Survey", key="profile", width="stretch"):
+        st.session_state.current_page = 'profile'
+        st.rerun()
+    
+    if st.sidebar.button("Funeral Cover", key="funeral", width="stretch"):
+        st.session_state.current_page = 'funeral'
+        st.rerun()
+    
+    if st.sidebar.button("Cellphone Survey", key="cellphone", width="stretch"):
+        st.session_state.current_page = 'cellphone'
+        st.rerun()
+    
+    if st.sidebar.button("Convenience Store", key="convenience", width="stretch"):
+        st.session_state.current_page = 'convenience'
+        st.rerun()
+    
+    if st.sidebar.button("Comprehensive Analytics", key="comprehensive", width="stretch"):
+        st.session_state.current_page = 'comprehensive'
+        st.rerun()
+    
+    # Add Sebenza logo below navigation buttons
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("Sebenza Taxi")
     
     # Display content based on current page
     if st.session_state.current_page == 'home':
@@ -116,7 +142,17 @@ def main():
     elif st.session_state.current_page == 'health':
         show_health_page()
     elif st.session_state.current_page == 'brands':
-        show_brands_page() 
+        show_brands_page()
+    elif st.session_state.current_page == 'profile':
+        show_profile_page()
+    elif st.session_state.current_page == 'funeral':
+        show_funeral_page()
+    elif st.session_state.current_page == 'cellphone':
+        show_cellphone_page()
+    elif st.session_state.current_page == 'convenience':
+        show_convenience_page()
+    elif st.session_state.current_page == 'comprehensive':
+        show_comprehensive_page() 
 
 def show_demographics_page():
     # Lazy import to prevent startup crashes
@@ -154,8 +190,54 @@ def show_brands_page():
         st.error(f"Brands module not available: {e}")
         st.info("This will be fixed in the next deployment")
 
+def show_profile_page():
+    # Lazy import to prevent startup crashes
+    try:
+        from dashboard_pages.profile_survey import main as profile_main
+        profile_main()
+    except ImportError as e:
+        st.error(f"Profile Survey module not available: {e}")
+        st.info("This will be fixed in the next deployment")
+
+def show_funeral_page():
+    # Lazy import to prevent startup crashes
+    try:
+        from dashboard_pages.funeral_cover import main as funeral_main
+        funeral_main()
+    except ImportError as e:
+        st.error(f"Funeral Cover module not available: {e}")
+        st.info("This will be fixed in the next deployment")
+
+def show_cellphone_page():
+    # Lazy import to prevent startup crashes
+    try:
+        from dashboard_pages.cellphone_survey import main as cellphone_main
+        cellphone_main()
+    except ImportError as e:
+        st.error(f"Cellphone Survey module not available: {e}")
+        st.info("This will be fixed in the next deployment")
+
+def show_convenience_page():
+    # Lazy import to prevent startup crashes
+    try:
+        from dashboard_pages.convenience_store import main as convenience_main
+        convenience_main()
+    except ImportError as e:
+        st.error(f"Convenience Store module not available: {e}")
+        st.info("This will be fixed in the next deployment")
+
+def show_comprehensive_page():
+    # Lazy import to prevent startup crashes
+    try:
+        from dashboard_pages.comprehensive_analytics import main as comprehensive_main
+        comprehensive_main()
+    except ImportError as e:
+        st.error(f"Comprehensive Analytics module not available: {e}")
+        st.info("This will be fixed in the next deployment")
+
 def show_home_page():
     st.title("📊 Dashboard Overview")
+    
     st.markdown("---")
     
     # Apply card styles
@@ -168,22 +250,34 @@ def show_home_page():
         from backend_client import get_backend_client
         client = get_backend_client()
         if client:
-            responses = client.get_responses()
-            if not responses.empty:
-                # Calculate real metrics
-                total_responses = len(responses)
-                unique_users = responses['pid'].nunique() if 'pid' in responses.columns else 0
-                date_range = "Live Data"
+            # Try to get survey index first (lightweight)
+            surveys_index = client.get_surveys_index()
+            if not surveys_index.empty:
+                # Get total responses from index
+                total_responses = len(surveys_index)
+                unique_users = surveys_index['pid'].nunique() if 'pid' in surveys_index.columns else total_responses
                 
                 metrics_data = [
                     {"title": "Total Responses", "value": f"{total_responses:,}"},
                     {"title": "Unique Users", "value": f"{unique_users:,}"},
                 ]
             else:
-                metrics_data = [
-                    {"title": "Total Responses", "value": "0"},
-                    {"title": "Unique Users", "value": "0"},
-                ]
+                # Fallback to responses endpoint with limit
+                responses = client.get_responses(limit=100)
+                if not responses.empty:
+                    # Calculate real metrics
+                    total_responses = len(responses)
+                    unique_users = responses['pid'].nunique() if 'pid' in responses.columns else 0
+                    
+                    metrics_data = [
+                        {"title": "Total Responses", "value": f"{total_responses:,}"},
+                        {"title": "Unique Users", "value": f"{unique_users:,}"},
+                    ]
+                else:
+                    metrics_data = [
+                        {"title": "Total Responses", "value": "0"},
+                        {"title": "Unique Users", "value": "0"},
+                    ]
         else:
             raise Exception("No backend connection")
     except:
@@ -198,7 +292,7 @@ def show_home_page():
     """)
 
     # Add metrics cards
-    st.markdown("### 📊 Key Metrics")
+    st.markdown("### Key Metrics")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -216,7 +310,7 @@ def show_home_page():
         ), unsafe_allow_html=True)
 
     # Add dashboard features
-    st.markdown("### 📋 Features")
+    st.markdown("### Features")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -236,15 +330,41 @@ def show_home_page():
         - **Money Source Analysis**
         - **Commuter Spending**
 
-        #### 🏥 Health Surveys Dashboard
+        #### Health Surveys Dashboard
         - **Health Status Analysis**
         - **Exercise & Lifestyle**
         - **Sleep Patterns**
 
-        #### 🏷️ Brands Analysis Dashboard
+        #### Brands Analysis Dashboard
         - **Brand Preference Analysis**
         - **Shopping Behavior**
         - **Customer Satisfaction**
+
+        #### Profile Survey Dashboard
+        - **Demographic Analysis**
+        - **Age & Gender Distribution**
+        - **Employment & Income**
+
+        #### Funeral Cover Dashboard
+        - **Coverage Analysis**
+        - **Provider Preferences**
+        - **Satisfaction Metrics**
+
+        #### Cellphone Survey Dashboard
+        - **Device Usage Analysis**
+        - **Network Provider Preferences**
+        - **Spending Patterns**
+
+        #### Convenience Store Dashboard
+        - **Shopping Behavior**
+        - **Product Preferences**
+        - **Store Satisfaction**
+
+        #### Comprehensive Analytics Dashboard
+        - **Advanced Filtering**
+        - **Cross-Survey Analysis**
+        - **System Health Monitoring**
+        - **Data Schema Documentation**
 
         **Last Updated**: `15-Sept-2025`
         """)
@@ -252,7 +372,7 @@ def show_home_page():
     # Add trend chart if data is available
     try:
         if responses is not None and hasattr(responses, 'empty') and not responses.empty and 'ts' in responses.columns:
-            st.markdown("### 📈 Response Trends")
+            st.markdown("### Response Trends")
             dates = pd.to_datetime(responses['ts'], errors='coerce').dropna()
             if not dates.empty:
                 # Create daily response counts
@@ -276,7 +396,7 @@ def show_home_page():
                 if altair_chart is not None:
                     st.altair_chart(altair_chart, use_container_width=True)
                 else:
-                    st.info("📊 Daily Response Counts (Altair not available)")
+                    st.info("Daily Response Counts (Altair not available)")
                     st.dataframe(trend_data, use_container_width=True)
             else:
                 st.info("No valid date data available for trend analysis")
@@ -288,7 +408,7 @@ def show_home_page():
     # Add Survey Questions Analysis
     try:
         if responses is not None and hasattr(responses, 'empty') and not responses.empty and 'q' in responses.columns:
-            st.markdown("### 📝 Survey Questions Analysis")
+            st.markdown("### Survey Questions Analysis")
             
             # Show unique questions count
             unique_questions = responses['q'].dropna().unique()

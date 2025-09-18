@@ -10,14 +10,17 @@ from chart_utils import create_altair_chart
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'styles'))
 from card_style import apply_card_styles
 
+# Image service removed
+IMAGE_SERVICE_AVAILABLE = False
+
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def load_health_data():
-    """Load and cache health data"""
+def load_health_data(limit: int = 100):
+    """Load and cache health data using efficient endpoint"""
     try:
         from backend_client import get_backend_client
         client = get_backend_client()
         if client:
-            health_data = client.get_health_surveys()
+            health_data = client.get_health_surveys(limit=limit)
             if health_data.empty:
                 return None
             return health_data
@@ -69,7 +72,8 @@ def main():
     apply_card_styles()
     
     # Fetch health data with caching
-    health_data = load_health_data()
+    # Load health data with limit for efficiency
+    health_data = load_health_data(limit=100)
     
     if health_data is None:
         st.info("Creating sample health data for demonstration")
@@ -124,6 +128,7 @@ def main():
     
     st.markdown("---")
     
+    # Image Gallery Section removed
     
     st.markdown("---")
         

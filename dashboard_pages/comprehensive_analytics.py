@@ -45,7 +45,7 @@ def get_comprehensive_data():
 
 def render_overview_metrics(data):
     """Render overview metrics from demographics data"""
-    if not data or not data.get('demographics'):
+    if not data or 'demographics' not in data:
         st.warning("No demographics data available")
         return
     
@@ -83,7 +83,7 @@ def render_overview_metrics(data):
 
 def render_demographics_charts(data):
     """Render demographics charts"""
-    if not data or not data.get('demographics'):
+    if not data or 'demographics' not in data:
         return
     
     demographics = data['demographics']
@@ -150,11 +150,11 @@ def render_demographics_charts(data):
 
 def render_survey_analysis(data):
     """Render survey analysis from survey index"""
-    if not data or not data.get('survey_index'):
+    if not data or 'survey_index' not in data:
         return
     
     survey_index = data['survey_index']
-    if survey_index.empty:
+    if survey_index is None or survey_index.empty:
         return
     
     st.markdown("### 📋 Survey Analysis")
@@ -191,7 +191,7 @@ def render_survey_analysis(data):
 
 def render_health_status(data):
     """Render health check status"""
-    if not data or not data.get('health_check'):
+    if not data or 'health_check' not in data:
         return
     
     health_data = data['health_check']
@@ -219,7 +219,7 @@ def render_health_status(data):
 
 def render_data_schema(data):
     """Render data schema information"""
-    if not data or not data.get('schema'):
+    if not data or 'schema' not in data:
         return
     
     schema = data['schema']

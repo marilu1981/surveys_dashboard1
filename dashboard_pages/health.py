@@ -14,13 +14,19 @@ from card_style import apply_card_styles
 IMAGE_SERVICE_AVAILABLE = False
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
-def load_health_data(limit: int = 100):
+def load_health_data(full: bool = True):
     """Load and cache health data using efficient endpoint"""
     try:
         from backend_client import get_backend_client
         client = get_backend_client()
         if client:
-            health_data = client.get_health_surveys(limit=limit)
+            if full:
+                # Use the individual survey endpoint with full=true for complete dataset
+                health_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
+            else:
+                # Use the health surveys method with limit for sample data
+                health_data = client.get_health_surveys(limit=100)
+            
             if health_data.empty:
                 return None
             return health_data
@@ -72,13 +78,15 @@ def main():
     apply_card_styles()
     
     # Fetch health data with caching
-    # Load health data with limit for efficiency
-    health_data = load_health_data(limit=100)
+    # Load full health data for complete analysis
+    with st.spinner("Loading complete health survey dataset..."):
+        health_data = load_health_data(full=True)
     
     if health_data is None:
         st.info("Creating sample health data for demonstration")
         health_data = create_sample_data()
-    
+    else:
+        st.success(f"✅ Loaded complete dataset: {len(health_data):,} responses")
     
     if health_data is None or health_data.empty:
         st.error("No health data available")

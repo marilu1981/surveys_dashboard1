@@ -147,11 +147,14 @@ def main():
     apply_card_styles()
     
     # Fetch convenience store survey data with caching
-    convenience_data = load_convenience_store_data()
+    with st.spinner("Loading Convenience Store Survey data..."):
+        convenience_data = load_convenience_store_data()
     
     if convenience_data is None:
         st.info("Creating sample convenience store survey data for demonstration")
         convenience_data = create_sample_convenience_data()
+    else:
+        st.success(f"✅ Loaded Convenience Store Survey data: {len(convenience_data):,} responses")
     
     # Calculate metrics
     metrics = calculate_convenience_metrics(convenience_data)

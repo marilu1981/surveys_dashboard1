@@ -40,14 +40,15 @@ def create_sample_cellphone_data():
     survey_group = 'SB056'
     
     # Cellphone questions
-    questions = [
+    base_questions = [
         'What type of cellphone do you use?',
         'Which network provider do you use?',
         'How much do you spend on airtime monthly?',
         'Do you use data bundles?',
         'What is your primary use for your cellphone?',
         'Are you satisfied with your current network provider?'
-    ] * (n_records // 6) + questions[:n_records % 6]
+    ]
+    questions = base_questions * (n_records // 6) + base_questions[:n_records % 6]
     
     # Responses for each question
     responses = []
@@ -147,11 +148,14 @@ def main():
     apply_card_styles()
     
     # Fetch cellphone survey data with caching
-    cellphone_data = load_cellphone_survey_data()
+    with st.spinner("Loading Cellphone Survey data..."):
+        cellphone_data = load_cellphone_survey_data()
     
     if cellphone_data is None:
         st.info("Creating sample cellphone survey data for demonstration")
         cellphone_data = create_sample_cellphone_data()
+    else:
+        st.success(f"✅ Loaded Cellphone Survey data: {len(cellphone_data):,} responses")
     
     # Calculate metrics
     metrics = calculate_cellphone_metrics(cellphone_data)

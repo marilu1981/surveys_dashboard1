@@ -37,14 +37,15 @@ def create_sample_profile_data():
     survey_titles = ['Profile Survey 2024'] * n_records
     
     # Profile questions: 6 different questions
-    questions = [
+    base_questions = [
         'What is your age group?',
         'What is your gender?',
         'What is your employment status?',
         'What is your monthly income range?',
         'What is your education level?',
         'What is your location?'
-    ] * (n_records // 6) + questions[:n_records % 6]
+    ]
+    questions = base_questions * (n_records // 6) + base_questions[:n_records % 6]
     
     # Responses for each question
     responses = []
@@ -138,11 +139,14 @@ def main():
     apply_card_styles()
     
     # Fetch profile survey data with caching
-    profile_data = load_profile_survey_data()
+    with st.spinner("Loading Profile Survey data..."):
+        profile_data = load_profile_survey_data()
     
     if profile_data is None:
         st.info("Creating sample profile survey data for demonstration")
         profile_data = create_sample_profile_data()
+    else:
+        st.success(f"✅ Loaded Profile Survey data: {len(profile_data):,} responses")
     
     # Calculate metrics
     metrics = calculate_profile_metrics(profile_data)

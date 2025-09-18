@@ -45,19 +45,32 @@ def main():
     with col2:
         end_date = st.date_input("End Date", value=None, key="brands_end_date")
     
-    # Fetch brands data
+    # Fetch brands data from Profile Survey (contains brand-related questions)
     brands_data = None
     try:
         from backend_client import get_backend_client
         client = get_backend_client()
         if client:
-            st.info("Attempting to fetch brands data from backend...")
-            brands_data = client.get_brands_data()
+            st.info("Loading brand-related data from Profile Survey...")
+            # Use the Profile Survey data which contains brand-related questions
+            brands_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
+            
             if not brands_data.empty:
-                st.success(f"✅ Successfully loaded {len(brands_data):,} rows from backend!")
-                st.info(f"Columns: {list(brands_data.columns)}")
+                # Filter for brand-related questions
+                brand_questions = brands_data[
+                    brands_data['q'].str.contains('brand|product|service|company|prefer', case=False, na=False)
+                ]
+                
+                if not brand_questions.empty:
+                    st.success(f"✅ Successfully loaded {len(brand_questions):,} brand-related responses!")
+                    st.info(f"Columns: {list(brand_questions.columns)}")
+                    brands_data = brand_questions
+                else:
+                    st.warning("No brand-related questions found in Profile Survey data")
+                    st.info("Using all Profile Survey data for analysis")
+                    st.success(f"✅ Loaded {len(brands_data):,} total responses from Profile Survey")
             else:
-                st.warning("No brands data available from backend")
+                st.warning("No data available from Profile Survey")
                 brands_data = None
         else:
             raise Exception("No backend connection")
@@ -121,8 +134,8 @@ def main():
         return
     
     # Apply date filter if provided
-    if 'timestamp' in brands_data.columns and (start_date or end_date):
-        brands_data['date'] = pd.to_datetime(brands_data['timestamp']).dt.date
+    if 'ts' in brands_data.columns and (start_date or end_date):
+        brands_data['date'] = pd.to_datetime(brands_data['ts']).dt.date
         if start_date:
             brands_data = brands_data[brands_data['date'] >= start_date]
         if end_date:
@@ -137,17 +150,17 @@ def main():
         st.metric("Total Responses", f"{total_responses:,}")
     
     with col2:
-        unique_profiles = brands_data['profile_id'].nunique() if 'profile_id' in brands_data.columns else 0
+        unique_profiles = brands_data['pid'].nunique() if 'pid' in brands_data.columns else 0
         st.metric("Unique Profiles", f"{unique_profiles:,}")
     
     with col3:
-        unique_questions = brands_data['question'].nunique() if 'question' in brands_data.columns else 0
+        unique_questions = brands_data['q'].nunique() if 'q' in brands_data.columns else 0
         st.metric("Questions", f"{unique_questions:,}")
     
     with col4:
         # Show date range
-        if 'timestamp' in brands_data.columns:
-            dates = pd.to_datetime(brands_data['timestamp'], errors='coerce').dropna()
+        if 'ts' in brands_data.columns:
+            dates = pd.to_datetime(brands_data['ts'], errors='coerce').dropna()
             if not dates.empty:
                 date_range = f"{dates.min().strftime('%Y-%m-%d')} to {dates.max().strftime('%Y-%m-%d')}"
                 st.metric("Date Range", date_range)
@@ -163,8 +176,8 @@ def main():
         st.header("Brands Filters")
         
         # Survey title filter
-        if 'survey_title' in brands_data.columns:
-            titles = brands_data['survey_title'].unique()
+        if 'title' in brands_data.columns:
+            titles = brands_data['title'].unique()
             selected_titles = st.multiselect("Choose surveys", options=titles, default=titles)
         else:
             selected_titles = []
@@ -182,11 +195,11 @@ def main():
         else:
             selected_ages = []
         
-        if 'income_group' in brands_data.columns:
-            incomes = brands_data['income_group'].unique()
-            selected_incomes = st.multiselect("Income group", incomes, default=incomes)
+        if 'salary' in brands_data.columns:
+            salaries = brands_data['salary'].unique()
+            selected_salaries = st.multiselect("Salary range", salaries, default=salaries)
         else:
-            selected_incomes = []
+            selected_salaries = []
         
         if 'location' in brands_data.columns:
             locations = brands_data['location'].unique()
@@ -197,8 +210,8 @@ def main():
     # Apply filters
     filtered_data = brands_data.copy()
     
-    if selected_titles and 'survey_title' in brands_data.columns:
-        filtered_data = filtered_data[filtered_data['survey_title'].isin(selected_titles)]
+    if selected_titles and 'title' in brands_data.columns:
+        filtered_data = filtered_data[filtered_data['title'].isin(selected_titles)]
     
     if selected_genders and 'gender' in brands_data.columns:
         filtered_data = filtered_data[filtered_data['gender'].isin(selected_genders)]
@@ -206,8 +219,8 @@ def main():
     if selected_ages and 'age_group' in brands_data.columns:
         filtered_data = filtered_data[filtered_data['age_group'].isin(selected_ages)]
     
-    if selected_incomes and 'income_group' in brands_data.columns:
-        filtered_data = filtered_data[filtered_data['income_group'].isin(selected_incomes)]
+    if selected_salaries and 'salary' in brands_data.columns:
+        filtered_data = filtered_data[filtered_data['salary'].isin(selected_salaries)]
     
     if selected_locations and 'location' in brands_data.columns:
         filtered_data = filtered_data[filtered_data['location'].isin(selected_locations)]
@@ -217,18 +230,18 @@ def main():
         st.info(f"Showing {len(filtered_data):,} of {len(brands_data):,} responses")
     
     # Question selection
-    if 'question' in filtered_data.columns:
-        questions = filtered_data['question'].unique()
+    if 'q' in filtered_data.columns:
+        questions = filtered_data['q'].unique()
         if len(questions) > 0:
             selected_question = st.selectbox("Select a question to analyze:", questions)
             
             if selected_question:
                 # Filter data for selected question
-                question_data = filtered_data[filtered_data['question'] == selected_question]
+                question_data = filtered_data[filtered_data['q'] == selected_question]
                 
                 if not question_data.empty:
                     # Response distribution
-                    response_counts = question_data['response'].value_counts()
+                    response_counts = question_data['resp'].value_counts()
                     
                     col1, col2 = st.columns([2, 1])
                     

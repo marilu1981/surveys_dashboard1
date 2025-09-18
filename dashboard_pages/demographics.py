@@ -95,7 +95,7 @@ def main():
     # Get data
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()
     
-    if survey_ids and not responses.empty:
+    if survey_ids and (responses is not None and not responses.empty):
         # Date Range Filter
         st.markdown("### 📅 Date Range Filter")
         
@@ -585,6 +585,68 @@ def main():
                     AgGrid(sem_breakdown, gridOptions=gridOptions, enable_enterprise_modules=True, height=400)
                 else:
                     st.info("No SEM segment data available (all values are null)")
+    
+    elif demographics_data is not None and not demographics_data.empty:
+        # Handle case where we have demographics data but no responses data
+        st.info("📊 Using pre-computed demographics data from backend")
+        
+        # Display key metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Responses", f"{len(demographics_data):,}")
+        
+        with col2:
+            unique_respondents = demographics_data['pid'].nunique() if 'pid' in demographics_data.columns else len(demographics_data)
+            st.metric("Unique Respondents", f"{unique_respondents:,}")
+        
+        with col3:
+            if 'sem_score' in demographics_data.columns:
+                avg_score = demographics_data['sem_score'].mean()
+                if not pd.isna(avg_score) and avg_score > 0:
+                    st.metric("Average SEM Score", f"{avg_score:.1f}")
+                else:
+                    st.metric("Average SEM Score", "No Data")
+            else:
+                st.metric("Average SEM Score", "No Data")
+        
+        with col4:
+            st.metric("Date Range", "Pre-computed")
+        
+        # Display demographics charts using the pre-computed data
+        st.markdown("### 📊 Demographics Overview")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if 'gender' in demographics_data.columns:
+                gender_dist = demographics_data['gender'].value_counts()
+                if not gender_dist.empty:
+                    fig = px.pie(
+                        values=gender_dist.values, 
+                        names=gender_dist.index, 
+                        title=f"Gender Distribution (n={len(demographics_data):,})"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No gender data available")
+        
+        with col2:
+            if 'age_group' in demographics_data.columns:
+                age_dist = demographics_data['age_group'].value_counts()
+                if not age_dist.empty:
+                    fig = px.bar(
+                        x=age_dist.index, 
+                        y=age_dist.values,
+                        title=f"Age Group Distribution (n={len(demographics_data):,})"
+                    )
+                    fig.update_layout(
+                        xaxis_title="Age Group",
+                        yaxis_title="Count"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No age group data available")
         
     else:
         st.warning("⚠️ No data found or connection failed")

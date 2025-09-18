@@ -60,14 +60,15 @@ def create_sample_funeral_data():
     survey_groups = ['FI027', 'FI028'] * (n_records // 2) + ['FI027'] * (n_records % 2)
     
     # Funeral cover questions
-    questions = [
+    base_questions = [
         'Do you have funeral cover?',
         'What type of funeral cover do you have?',
         'How much do you pay monthly for funeral cover?',
         'Are you satisfied with your current funeral cover?',
         'Would you consider switching funeral cover providers?',
         'What is most important in funeral cover?'
-    ] * (n_records // 6) + questions[:n_records % 6]
+    ]
+    questions = base_questions * (n_records // 6) + base_questions[:n_records % 6]
     
     # Responses for each question
     responses = []
@@ -167,11 +168,14 @@ def main():
     apply_card_styles()
     
     # Fetch funeral cover survey data with caching
-    funeral_data = load_funeral_cover_data()
+    with st.spinner("Loading Funeral Cover survey data..."):
+        funeral_data = load_funeral_cover_data()
     
     if funeral_data is None:
         st.info("Creating sample funeral cover survey data for demonstration")
         funeral_data = create_sample_funeral_data()
+    else:
+        st.success(f"✅ Loaded Funeral Cover data: {len(funeral_data):,} responses")
     
     # Calculate metrics
     metrics = calculate_funeral_metrics(funeral_data)

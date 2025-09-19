@@ -33,7 +33,7 @@ def get_real_data():
         if demographics_data and "error" not in demographics_data:
             # Use pre-computed demographics data - this is the rich data structure
             st.success("✅ Using pre-computed demographics data from backend")
-            return demographics_data, None, None, None, None
+            return None, None, demographics_data, None, None
         
         # Fallback to responses data if demographics endpoint not available
         responses = client.get_responses(survey="SB055_Profile_Survey1", limit=1000)
@@ -128,7 +128,7 @@ def render_precomputed_demographics(demographics_data):
             if gender_data:
                 gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
                 fig = px.pie(gender_df, values='Count', names='Gender', title="Gender Distribution")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         with col2:
             st.markdown("#### Age Group Distribution")
@@ -136,7 +136,7 @@ def render_precomputed_demographics(demographics_data):
             if age_data:
                 age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
                 fig = px.bar(age_df, x='Age Group', y='Count', title="Age Group Distribution")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         # Employment and Salary
         col1, col2 = st.columns(2)
@@ -147,7 +147,7 @@ def render_precomputed_demographics(demographics_data):
             if employment_data:
                 emp_df = pd.DataFrame(list(employment_data.items()), columns=['Employment', 'Count'])
                 fig = px.bar(emp_df, x='Count', y='Employment', orientation='h', title="Employment Status")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         with col2:
             st.markdown("#### Salary Bands")
@@ -155,7 +155,7 @@ def render_precomputed_demographics(demographics_data):
             if salary_data:
                 salary_df = pd.DataFrame(list(salary_data.items()), columns=['Salary Band', 'Count'])
                 fig = px.bar(salary_df, x='Count', y='Salary Band', orientation='h', title="Salary Distribution")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
         
         # Provinces
         st.markdown("#### Provincial Distribution")
@@ -163,7 +163,7 @@ def render_precomputed_demographics(demographics_data):
         if province_data:
             province_df = pd.DataFrame(list(province_data.items()), columns=['Province', 'Count'])
             fig = px.bar(province_df, x='Province', y='Count', title="Provincial Distribution")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     
     # Time series data
     time_series = demographics_data.get("time_series", {})
@@ -177,7 +177,7 @@ def render_precomputed_demographics(demographics_data):
         daily_df['date'] = pd.to_datetime(daily_df['date'])
         
         fig = px.line(daily_df, x='date', y='response_count', title="Daily Response Count")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     # Survey breakdown
     by_survey = demographics_data.get("by_survey", {})
@@ -194,7 +194,7 @@ def render_precomputed_demographics(demographics_data):
             })
         
         survey_df = pd.DataFrame(survey_data)
-        st.dataframe(survey_df, use_container_width=True)
+        st.dataframe(survey_df, width='stretch')
 
 def main():
     st.title("📊 Demographics Dashboard")

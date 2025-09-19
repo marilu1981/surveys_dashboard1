@@ -228,10 +228,10 @@ def render_precomputed_demographics(demographics_data):
             )
             st.plotly_chart(fig_region, width='stretch')
     
-    # Row 4: SEM and Main Source of Income
-    col7, col8 = st.columns([1, 1], gap="medium")
+    # Row 4: SEM Distribution
+    col_sem, _ = st.columns([1, 1], gap="medium")
     
-    with col7:
+    with col_sem:
         # SEM Bar Chart - Percentage of Total
         sem_data = overall_demographics.get("sem", {})
         if sem_data:
@@ -244,7 +244,7 @@ def render_precomputed_demographics(demographics_data):
             sem_df = sem_df.sort_values('SEM_Num')
             
             fig_sem = px.bar(sem_df, x='SEM', y='Percentage', title="SEM Distribution (% of Total)",
-                            color='Percentage', color_continuous_scale='purples')
+                             color='Percentage', color_continuous_scale='purples')
             fig_sem.update_layout(
                 xaxis_tickangle=-45, 
                 font_size=14,
@@ -256,7 +256,10 @@ def render_precomputed_demographics(demographics_data):
             )
             st.plotly_chart(fig_sem, width='stretch')
     
-    with col8:
+    # Row 5: Main Source of Income and Side Hustles
+    col_income, col_hustles = st.columns([1, 1], gap="medium")
+    
+    with col_income:
         # Main Source of Income Bar Chart
         question_analysis = demographics_data.get("question_analysis", {})
         response_distributions = question_analysis.get("response_distributions", {})
@@ -278,10 +281,7 @@ def render_precomputed_demographics(demographics_data):
             )
             st.plotly_chart(fig_money, width='stretch')
     
-    # Row 5: Side Hustles
-    col9, col10 = st.columns([1, 1], gap="medium")
-    
-    with col9:
+    with col_hustles:
         # Side Hustles Bar Chart
         if side_hustles:
             side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
@@ -299,7 +299,7 @@ def render_precomputed_demographics(demographics_data):
                 xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_hustles, width='stretch')
-        
+    
     # Additional Question Analysis
     question_analysis = demographics_data.get("question_analysis", {})
     response_distributions = question_analysis.get("response_distributions", {})

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 import os
@@ -23,7 +23,7 @@ if DASHBOARD_DIR not in sys.path:
 
 st.set_page_config(
     page_title="Sebenza Surveys Dashboard",
-    page_icon="📊",
+    page_icon="??",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -88,14 +88,14 @@ def record_data_usage(page: str, endpoint: str, records: int) -> None:
 
 
 def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
-    st.markdown("--------------------------------")
     st.sidebar.title("Menu")
 
     page_lookup = {page.label: page for page in navigation}
     selection = st.sidebar.radio(
-        "",
+        "Navigate",
         options=[page.label for page in navigation],
         index=[page.page_id for page in navigation].index(active_page_id),
+        label_visibility='visible',
     )
     if page_lookup[selection].page_id != active_page_id:
         st.session_state.current_page = page_lookup[selection].page_id
@@ -137,7 +137,7 @@ def render_data_usage_sidebar() -> None:
         recent = usage[-5:]
         for item in reversed(recent):
             st.caption(
-                f"{item['timestamp']:%Y-%m-%d %H:%M UTC} â€” {item['page']} ({item['records']:,} rows via {item['endpoint']})"
+                f"{item['timestamp']:%Y-%m-%d %H:%M UTC} — {item['page']} ({item['records']:,} rows via {item['endpoint']})"
             )
 
 
@@ -152,7 +152,7 @@ def _get_survey_options() -> list[str]:
             return sorted(index["survey"].dropna().unique().tolist())
         if "title" in index.columns:
             return sorted(index["title"].dropna().unique().tolist())
-    summary = client.get_survey_summary()
+    summary = _client.get_survey_summary()
     if isinstance(summary, dict):
         surveys = summary.get("surveys", [])
         if isinstance(surveys, list):
@@ -171,7 +171,6 @@ def _get_survey_options() -> list[str]:
 
 def show_home_page() -> None:
     st.title("Sebenza Surveys Dashboard")
-    st.markdown("--------------------------------")
     st.caption("Insightful, trusted intelligence for the South African commuter market.")
     apply_card_styles()
 
@@ -197,16 +196,16 @@ def show_home_page() -> None:
     show_spinner=False,
     hash_funcs={"backend_client.BackendClient": lambda client: (client.base_url, getattr(client, "api_key", "") or "")},
 )
-def load_metrics_and_responses(client, survey: str) -> tuple[dict[str, str], pd.DataFrame]:
+def load_metrics_and_responses(_client, survey: str) -> tuple[dict[str, str], pd.DataFrame]:
     fallback = {
         "total_responses": "0",
         "unique_respondents": "0",
         "last_updated": "Unknown",
     }
-    if not client:
+    if not _client:
         return fallback, pd.DataFrame()
 
-    summary = client.get_survey_summary()
+    summary = _client.get_survey_summary()
     if isinstance(summary, dict):
         total = summary.get("total_responses")
         unique = summary.get("unique_respondents")
@@ -214,7 +213,7 @@ def load_metrics_and_responses(client, survey: str) -> tuple[dict[str, str], pd.
     else:
         total = unique = updated = None
 
-    responses = client.get_responses(survey=survey, limit=30000)
+    responses = _client.get_responses(survey=survey, limit=30000)
     if not isinstance(responses, pd.DataFrame):
         responses = pd.DataFrame()
 
@@ -319,13 +318,23 @@ def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
 
     min_date = responses["ts"].min().date()
     max_date = responses["ts"].max().date()
-    start, end = st.date_input(
-        "Filter by date range",
-        value=(min_date, max_date),
-        min_value=min_date,
-        max_value=max_date,
-        key=f"range_{survey}",
-    )
+    if min_date == max_date:
+        selected_date = st.date_input(
+            "Filter by date range",
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date,
+            key=f"range_{survey}",
+        )
+        start = end = selected_date
+    else:
+        start, end = st.date_input(
+            "Filter by date range",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+            key=f"range_{survey}",
+        )
     mask = (responses["ts"].dt.date >= start) & (responses["ts"].dt.date <= end)
     filtered = responses.loc[mask]
 

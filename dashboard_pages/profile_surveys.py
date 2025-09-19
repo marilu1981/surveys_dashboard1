@@ -24,13 +24,159 @@ def get_real_data():
     """Get real data from your backend API"""
     client = get_backend_client()
     if not client:
-        st.warning("⚠️ Backend connection not available - using sample data")
+        st.warning("?s??,? Backend connection not available - using sample data")
+        return None, None, None, None
+
+    PAGE_SIZE = 1000
+    MAX_RECORDS = 30000
+
+    try:
+        frames: list[pd.DataFrame] = []
+        total_loaded = 0
+        required_questions = {
+            "Which of these shops do you visit most often (Select all that apply)",
+            "How much did you pay for this trip?",
+            "What is your main source of money?",
+        }
+        seen_questions: set[str] = set()
+
+        for offset in range(0, MAX_RECORDS, PAGE_SIZE):
+            remaining = MAX_RECORDS - offset
+            limit = PAGE_SIZE if remaining >= PAGE_SIZE else remaining
+            if limit <= 0:
+                break
+            try:
+                page = client.get_responses(
+                    survey="SB055_Profile_Survey1",
+                    limit=limit,
+                    offset=offset,
+                )
+            except Exception:
+                continue
+
+            if not isinstance(page, pd.DataFrame) or page.empty:
+                if offset == 0:
+                    break
+                if frames:
+                    break
+                continue
+
+            frames.append(page)
+            total_loaded += len(page)
+
+            if "q" in page.columns:
+                seen_questions.update(str(q) for q in page["q"].dropna().unique())
+
+            if required_questions.issubset(seen_questions) and len(page) < PAGE_SIZE:
+                break
+
+            if len(page) < PAGE_SIZE:
+                break
+
+        responses = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
+        if responses.empty:
+            st.warning('dY"S Unable to retrieve profile survey responses from the backend')
+            return None, None, None, None
+
+        if "q" in responses.columns and "SURVEY_QUESTION" not in responses.columns:
+            responses["SURVEY_QUESTION"] = responses["q"]
+        if "resp" in responses.columns and "RESPONSE" not in responses.columns:
+            responses["RESPONSE"] = responses["resp"]
+        if "pid" in responses.columns and "PROFILE_ID" not in responses.columns:
+            responses["PROFILE_ID"] = responses["pid"]
+        if "ts" in responses.columns:
+            responses["ts"] = pd.to_datetime(responses["ts"], errors="coerce")
+            if "SURVEY_DATE" not in responses.columns:
+                responses["SURVEY_DATE"] = responses["ts"].dt.date
+        elif "SURVEY_DATE" in responses.columns:
+            responses["ts"] = pd.to_datetime(responses["SURVEY_DATE"], errors="coerce")
+
+        client.get_survey_summary()
+        survey_ids = ["SB055_Profile_Survey1"]
+
+        if "SURVEY_QUESTION" in responses.columns:
+            unique_questions = responses["SURVEY_QUESTION"].dropna().unique()
+            questions_df = pd.DataFrame({"question": unique_questions})
+        elif "q" in responses.columns:
+            unique_questions = responses["q"].dropna().unique()
+            questions_df = pd.DataFrame({"question": unique_questions})
+        else:
+            questions_df = pd.DataFrame()
+
+        return survey_ids, questions_df, questions_df, responses
+
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Error getting data from backend: {exc}")
+        return None, None, None, None
+
+    try:
+        primary = client.get_responses(survey="SB055_Profile_Survey1", limit=30000)
+        frames: list[pd.DataFrame] = []
+        if isinstance(primary, pd.DataFrame) and not primary.empty:
+            frames.append(primary)
+
+        required_questions = {
+            "Which of these shops do you visit most often (Select all that apply)",
+            "How much did you pay for this trip?",
+            "What is your main source of money?",
+        }
+        seen_questions = set()
+        if isinstance(primary, pd.DataFrame) and "q" in primary.columns:
+            seen_questions.update(str(q) for q in primary["q"].dropna().unique())
+
+        if required_questions - seen_questions:
+            for offset in (1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,20000,30000):
+                try:
+                    chunk = client.get_responses(survey="SB055_Profile_Survey1", limit=30000, offset=offset)
+                except Exception:
+                    continue
+                if isinstance(chunk, pd.DataFrame) and not chunk.empty:
+                    frames.append(chunk)
+                    if "q" in chunk.columns:
+                        seen_questions.update(str(q) for q in chunk["q"].dropna().unique())
+                    if required_questions.issubset(seen_questions):
+                        break
+
+        responses = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
+        if responses.empty:
+            st.warning("dY\"S Unable to retrieve profile survey responses from the backend")
+            return None, None, None, None
+
+        if "q" in responses.columns and "SURVEY_QUESTION" not in responses.columns:
+            responses["SURVEY_QUESTION"] = responses["q"]
+        if "resp" in responses.columns and "RESPONSE" not in responses.columns:
+            responses["RESPONSE"] = responses["resp"]
+        if "pid" in responses.columns and "PROFILE_ID" not in responses.columns:
+            responses["PROFILE_ID"] = responses["pid"]
+        if "ts" in responses.columns:
+            responses["ts"] = pd.to_datetime(responses["ts"], errors="coerce")
+            if "SURVEY_DATE" not in responses.columns:
+                responses["SURVEY_DATE"] = responses["ts"].dt.date
+        elif "SURVEY_DATE" in responses.columns:
+            responses["ts"] = pd.to_datetime(responses["SURVEY_DATE"], errors="coerce")
+
+        summary = client.get_survey_summary()
+        survey_ids = ["SB055_Profile_Survey1"]
+
+        if "SURVEY_QUESTION" in responses.columns:
+            unique_questions = responses["SURVEY_QUESTION"].dropna().unique()
+            questions_df = pd.DataFrame({"question": unique_questions})
+        elif "q" in responses.columns:
+            unique_questions = responses["q"].dropna().unique()
+            questions_df = pd.DataFrame({"question": unique_questions})
+        else:
+            questions_df = pd.DataFrame()
+
+        return survey_ids, questions_df, questions_df, responses
+
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Error getting data from backend: {exc}")
         return None, None, None, None
     
     try:
         # Get responses data from your backend using optimized endpoint
         # Try to get Profile Survey data first (most comprehensive) - use individual survey endpoint with limit for cost efficiency
-        responses = client.get_individual_survey("SB055_Profile_Survey1", limit=1000)
+        responses = client.get_individual_survey("SB055_Profile_Survey1", limit=30000)
         
         
         if responses.empty:
@@ -64,8 +210,10 @@ def get_real_data():
         return None, None, None, None
 
 def main():
-    st.title("📊 Profile Surveys Dashboard")
-    st.markdown("---")
+    st.set_page_config(page_title="", page_icon=":bar_chart:", layout="wide")
+
+    st.title("Profile Surveys Dashboard")
+    st.markdown("--------------------------------")
     
     # Apply card styles
     apply_card_styles()
@@ -73,17 +221,17 @@ def main():
     # Only show sidebar navigation if not called from main app
     if 'current_page' not in st.session_state:
         # Sidebar navigation
-        st.sidebar.title("📊 Navigation")
+        st.sidebar.title("Navigation")
         st.sidebar.markdown("---")
         
         # Add navigation buttons
         if st.sidebar.button("🏠 Home", key="home_survey"):
             st.switch_page("app.py")
         
-        if st.sidebar.button("👥 Demographics", key="demographics_survey"):
+        if st.sidebar.button("Demographics", key="demographics_survey"):
             st.switch_page("dashboard_pages/demographics.py")
         
-        if st.sidebar.button("📋 Survey Questions", key="survey_questions_survey"):
+        if st.sidebar.button("Survey Questions", key="survey_questions_survey"):
             st.rerun()
     
     # Get data
@@ -91,7 +239,7 @@ def main():
     
     if survey_ids and responses is not None and not responses.empty:
         # Date Range Filter
-        st.markdown("### 📅 Date Range Filter")
+        st.markdown("### 📅 Date Range Filter (NOTE: for shops visited, Usave was only added on 02 Sept 2025)")
         
         # Convert ts column to datetime if it exists
         if 'ts' in responses.columns:
@@ -104,7 +252,7 @@ def main():
                 
                 # Create date slider
                 date_range = st.date_input(
-                    "Select date range:",
+                    "Select date range",
                     value=(min_date, max_date),
                     min_value=min_date,
                     max_value=max_date,
@@ -124,7 +272,7 @@ def main():
                         (responses['ts'] < end_datetime)
                     ]
                     
-                    st.info(f"📊 Showing data from {start_date} to {end_date} ({len(responses):,} responses)")
+                    # st.info(f"📊 Showing data from {start_date} to {end_date} ({len(responses):,} responses)")
                 else:
                     st.info("📊 Please select both start and end dates")
             else:
@@ -134,7 +282,7 @@ def main():
         # st.success(f"✅ Connected to Snowflake - Analyzing All Data from {len(survey_ids)} Surveys: {survey_ids}")
         
         # # Debug: Show data summary
-        # st.markdown("### 🔍 Data Debug Information")
+        # st.markdown("###  Data Debug Information")
         # with st.container(horizontal=True):
         #     cols = st.columns(3, gap="small", width=300)
 
@@ -170,7 +318,7 @@ def main():
         
         # Helper function to create filters for a specific section
         def create_section_filters(section_name, data, include_gender=True, include_age=True):
-            st.markdown(f"#### 🔍 {section_name} Filters")
+            st.markdown(f"#### {section_name} Filters")
             
             # Determine number of columns based on which filters to include
             num_filters = sum([include_age, include_gender, True])  # Always include SEM
@@ -241,7 +389,7 @@ def main():
             total_filtered = len(filtered_data)
             
             if total_filtered < total_original:
-                st.info(f"📊 Showing {total_filtered:,} of {total_original:,} responses")
+                st.info(f"Showing {total_filtered:,} of {total_original:,} responses")
             
             return filtered_data
         
@@ -250,23 +398,23 @@ def main():
         shop_responses = responses[responses['q'] == shop_question]
         
         # Debug: Show shop analysis data
-        st.markdown("#### 🏪 Shop Visitation Analysis Debug")
-        st.write(f"**Looking for question:** '{shop_question}'")
-        st.write(f"**Found responses:** {len(shop_responses)}")
+        # st.markdown("#### Shop Visitation Analysis Debug")
+        st.write(f"**Question:** '{shop_question}'")
+        # st.write(f"**Found responses:** {len(shop_responses)}")
         
         if 'q' in responses.columns:
             all_questions = responses['q'].unique()
-            st.write(f"**All available questions:** {list(all_questions)}")
+            # st.write(f"**All available questions:** {list(all_questions)}")
         
         # Debug: Check for similar questions
         if shop_responses.empty and 'q' in responses.columns:
             similar_questions = [q for q in responses['q'].unique() if 'shop' in q.lower() or 'visit' in q.lower()]
             if similar_questions:
-                st.info(f"🔍 No exact match for shop question. Similar questions found: {similar_questions}")
+                st.info(f"No exact match for shop question. Similar questions found: {similar_questions}")
         
         if not shop_responses.empty:
             with st.container():
-                st.markdown("#### Shop Visitation Analysis")
+                # st.markdown("#### Shop Visitation Analysis")
                 
                 # Add filters for this section
                 filtered_shop = create_section_filters("Shop Visits", shop_responses)
@@ -316,25 +464,25 @@ def main():
                     st.info("No shop data found in responses.")
         else:
             st.info(f"No responses found for the question: '{shop_question}'")
-        
+
+        st.markdown("--------------------------------")
         # Travel Cost Analysis
         travel_question = "How much did you pay for this trip?"
         travel_responses = responses[responses['q'] == travel_question]
         
         # Debug: Show travel cost analysis data
-        st.markdown("#### 💰 Travel Cost Analysis Debug")
-        st.write(f"**Looking for question:** '{travel_question}'")
-        st.write(f"**Found responses:** {len(travel_responses)}")
+        # st.markdown("#### 💰 Travel Cost Analysis Debug")
+        st.write(f"**Question:** '{travel_question}'")
+        # st.write(f"**Found responses:** {len(travel_responses)}")
         
         # Debug: Check for similar questions
         if travel_responses.empty and 'q' in responses.columns:
             similar_questions = [q for q in responses['q'].unique() if 'trip' in q.lower() or 'pay' in q.lower() or 'cost' in q.lower()]
             if similar_questions:
-                st.info(f"🔍 No exact match for trip cost question. Similar questions found: {similar_questions}")
+                st.info(f" No exact match for trip cost question. Similar questions found: {similar_questions}")
         
         if not travel_responses.empty:
             with st.container():
-                st.markdown("#### Trip Cost Analysis")
                 
                 # Add filters for this section
                 filtered_travel = create_section_filters("Trip Costs", travel_responses)
@@ -443,7 +591,6 @@ def main():
                         st.metric("Maximum Cost", f"R {max_cost:,.2f}")
                     
                     # Cost range analysis
-                    st.markdown("##### Cost Range Analysis")
                     
                     # Create cost ranges
                     cost_ranges = [
@@ -507,25 +654,24 @@ def main():
                     st.info("No valid cost data found in responses.")
         else:
             st.info(f"No responses found for the question: '{travel_question}'")
-        
+        st.markdown("--------------------------------")
         # Main Source of Money Analysis
         money_question = "What is your main source of money?"
         money_responses = responses[responses['q'] == money_question]
         
         # Debug: Show money source analysis data
-        st.markdown("#### 💵 Money Source Analysis Debug")
-        st.write(f"**Looking for question:** '{money_question}'")
-        st.write(f"**Found responses:** {len(money_responses)}")
+
+        st.write(f"**Question:** '{money_question}'")
+        # st.write(f"**Found responses:** {len(money_responses)}")
         
         # Debug: Check for similar questions
         if money_responses.empty and 'q' in responses.columns:
             similar_questions = [q for q in responses['q'].unique() if 'money' in q.lower() or 'source' in q.lower() or 'income' in q.lower()]
             if similar_questions:
-                st.info(f"🔍 No exact match for money source question. Similar questions found: {similar_questions}")
+                st.info(f" No exact match for money source question. Similar questions found: {similar_questions}")
         
         if not money_responses.empty:
             with st.container():
-                st.markdown("#### Main Source of Money Analysis")
                 
                 # Add filters for this section
                 filtered_money = create_section_filters("Money Source", money_responses)

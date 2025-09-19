@@ -60,13 +60,12 @@ def get_navigation() -> tuple[Page, ...]:
         Page("Home", "home", show_home_page),
         Page("Demographics", "demographics", lazy_page("dashboard_pages.demographics", "main")),
         Page("Profile Surveys", "profile", lazy_page("dashboard_pages.profile_surveys", "main")),
-        Page("Health Surveys", "health", lazy_page("dashboard_pages.health", "main")),
-        Page("Brands", "brands", lazy_page("dashboard_pages.brands", "main")),
+        # Page("Health Surveys", "health", lazy_page("dashboard_pages.health", "main")),
         Page("Funeral Cover", "funeral", lazy_page("dashboard_pages.funeral_cover", "main")),
-        Page("Cellphone", "cellphone", lazy_page("dashboard_pages.cellphone_survey", "main")),
-        Page("Convenience Store", "convenience", lazy_page("dashboard_pages.convenience_store", "main")),
+        # Page("Cellphone", "cellphone", lazy_page("dashboard_pages.cellphone_survey", "main")),
+        # Page("Convenience Store", "convenience", lazy_page("dashboard_pages.convenience_store", "main")),
         Page("Advanced Filters", "advanced_filters", lazy_page("dashboard_pages.advanced_filters", "main")),
-        Page("Comprehensive Analytics", "comprehensive", lazy_page("dashboard_pages.comprehensive_analytics", "main")),
+        # Page("Comprehensive Analytics", "comprehensive", lazy_page("dashboard_pages.comprehensive_analytics", "main")),
     )
 
 
@@ -89,12 +88,12 @@ def record_data_usage(page: str, endpoint: str, records: int) -> None:
 
 
 def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
-    st.sidebar.title("Sebenza Surveys Dashboard")
-    st.sidebar.markdown("---")
+    st.markdown("--------------------------------")
+    st.sidebar.title("Menu")
 
     page_lookup = {page.label: page for page in navigation}
     selection = st.sidebar.radio(
-        "Navigate",
+        "",
         options=[page.label for page in navigation],
         index=[page.page_id for page in navigation].index(active_page_id),
     )
@@ -172,19 +171,19 @@ def _get_survey_options() -> list[str]:
 
 def show_home_page() -> None:
     st.title("Sebenza Surveys Dashboard")
+    st.markdown("--------------------------------")
     st.caption("Insightful, trusted intelligence for the South African commuter market.")
-    st.markdown("---")
-
     apply_card_styles()
 
     client = get_backend_client()
-    survey_options = _get_survey_options()
-    default_survey = survey_options[0] if survey_options else "SB055_Profile_Survey1"
-    selected_survey = st.selectbox(
-        "Select survey to analyse",
-        options=survey_options or [default_survey],
-        index=0,
-    )
+    # survey_options = _get_survey_options()
+    # default_survey = survey_options[0] if survey_options else "SB055_Profile_Survey1"
+    # selected_survey = st.selectbox(
+    #     "Select survey to analyse",
+    #     options=survey_options or [default_survey],
+    #     index=0,
+    # )
+    selected_survey = "[default_survey]"
 
     metrics, responses = load_metrics_and_responses(client, selected_survey)
     render_metrics(metrics)
@@ -215,14 +214,19 @@ def load_metrics_and_responses(client, survey: str) -> tuple[dict[str, str], pd.
     else:
         total = unique = updated = None
 
-    responses = client.get_responses(survey=survey, limit=1000)
+    responses = client.get_responses(survey=survey, limit=30000)
     if not isinstance(responses, pd.DataFrame):
         responses = pd.DataFrame()
 
-    if total is None and not responses.empty:
-        total = len(responses)
-    if unique is None and not responses.empty and "pid" in responses.columns:
-        unique = responses["pid"].nunique()
+    if not responses.empty and "pid" not in responses.columns:
+        if "profile_id" in responses.columns:
+            responses["pid"] = responses["profile_id"]
+
+    if not responses.empty:
+        if total is None:
+            total = len(responses)
+        if (unique is None or unique == 0) and "pid" in responses.columns:
+            unique = responses["pid"].dropna().nunique()
     metrics = {
         "total_responses": _format_number(total) if total is not None else "0",
         "unique_respondents": _format_number(unique) if unique is not None else "0",
@@ -271,7 +275,7 @@ def render_metrics(metrics: dict[str, str]) -> None:
             create_metric_card(
                 "Last refreshed",
                 metrics["last_updated"],
-                "Source: Sebenza data services",
+                "Source: Sebenza data",
             ),
             unsafe_allow_html=True,
         )
@@ -293,16 +297,15 @@ def render_feature_highlights() -> None:
         st.markdown(
             """
             **Engagement dashboards**
-            - Campaign-ready segments in Brands, Health and Profile views
-            - Funnel perspectives for Funeral Cover and Cellphone surveys
-            - Operations suite with data quality and schema documentation
+            - Brands, Health and Profiles
+            - Funeral Cover and Cellphone surveys
             """
         )
 
 
 def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
     if responses.empty or "ts" not in responses.columns:
-        st.info("Response trend data is not available for the selected survey yet.")
+        # st.info("Response trend data is not available for the selected survey yet.")
         return
 
     st.subheader("Response trends")

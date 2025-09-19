@@ -1,4 +1,4 @@
-﻿"""Global styling helpers for the Sebenza Surveys dashboard."""
+"""Global styling helpers for the Sebenza Surveys dashboard."""
 import streamlit as st
 
 
@@ -20,12 +20,12 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
         --h4-font-size: {h4_size};
         --metric-value-size: {metric_value};
         --metric-label-size: {metric_label};
-        --brand-primary: #1f4b99;
-        --brand-accent: #13a36e;
-        --surface: #ffffff;
-        --surface-alt: #f5f7fb;
-        --text-color: #1c2533;
-        --muted-text: #5e6a7f;
+        --brand-primary: #5e6a7f;
+        --brand-accent: #46b1e1;
+        --surface: #dddddd;
+        --surface-alt: #f5f7f;
+        --text: #151B25;
+        --muted-text: #1c2533;
       }}
 
       * {{
@@ -36,7 +36,7 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
 
       body, .stApp {{
         font-size: var(--base-font) !important;
-        color: var(--text-color) !important;
+        color: var(--text) !important;
         background-color: var(--surface-alt) !important;
       }}
 
@@ -47,7 +47,7 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
 
       .stTitle, .stApp h1 {{
         font-size: var(--title-font-size) !important;
-        color: var(--text-color);
+        color: var(--text);
         font-weight: 700 !important;
         margin-bottom: 0.2rem !important;
       }}
@@ -55,48 +55,60 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
       .stMarkdown h3, .stApp h3 {{
         font-size: var(--h3-font-size) !important;
         font-weight: 600 !important;
-        color: var(--text-color);
+        color: var(--text);
         margin-bottom: 0.75rem !important;
       }}
 
       .stMarkdown h4, .stApp h4 {{
         font-size: var(--h4-font-size) !important;
         font-weight: 600 !important;
-        color: var(--text-color);
+        color: var(--text);
       }}
 
       .stMarkdown p, .stMarkdown ul, .stMarkdown ol {{
-        color: var(--text-color) !important;
+        color: var(--text) !important;
       }}
 
       .stSidebar, .stSidebar .block-container {{
         background-color: var(--surface) !important;
+        color: var(--text) !important;
       }}
 
       div[data-testid="stSidebar"] {{
         border-right: 1px solid #dbe1ec;
+        color: var(--text) !important;
+      }}
+
+      div[data-testid="stSidebar"] *, section[data-testid="stSidebar"] *, section[data-testid="stSidebar"] {{
+        color: var(--text) !important;
+      }}
+
+      div[data-testid="stSidebar"] a, section[data-testid="stSidebar"] a {{
+        color: var(--text) !important;
       }}
 
       div[data-testid="stSidebar"] .stButton > button, div[data-testid="stSidebar"] .stRadio > div {{
         font-size: var(--base-font) !important;
+        color: var(--text) !important;
       }}
 
       div[data-testid="stSidebar"] .stButton > button {{
         width: 100%;
         text-align: left;
         font-weight: 600;
-        color: var(--text-color);
         border-radius: 10px;
         border: 1px solid transparent;
         padding: 0.6rem 0.75rem;
         background-color: transparent;
         transition: all 0.18s ease-in-out;
+        color: var(--text) !important;
       }}
 
       div[data-testid="stSidebar"] .stButton > button:hover,
       div[data-testid="stSidebar"] .stButton > button:focus {{
         background-color: rgba(31, 75, 153, 0.08);
         border-color: rgba(31, 75, 153, 0.25);
+        color: var(--text) !important;
       }}
 
       .stMetric label[data-testid="stMetricLabel"] {{
@@ -113,7 +125,7 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
       /* Plotly adjustments */
       .js-plotly-plot .gtitle, .js-plotly-plot .gtitle * {{
         font-size: var(--h4-font-size) !important;
-        fill: var(--text-color) !important;
+        fill: var(--text) !important;
       }}
 
       .js-plotly-plot .xtitle, .js-plotly-plot .ytitle,
@@ -129,17 +141,18 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
       }}
 
       .stDataFrame [data-testid="StyledDataFrame"] tbody tr:hover {{
-        background-color: rgba(19, 163, 110, 0.08) !important;
+        background-color: rgba(44, 112, 212, 0.08) !important;
       }}
 
       /* Expander */
       .streamlit-expanderHeader {{
         font-weight: 600 !important;
-        color: var(--text-color) !important;
+        color: var(--text) !important;
       }}
 
       .streamlit-expanderContent {{
         background-color: var(--surface-alt) !important;
+        color: var(--text) !important;
       }}
 
       /* Tabs */
@@ -152,6 +165,7 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
         color: var(--brand-primary);
         border-color: var(--brand-primary);
       }}
+
     </style>
     """
 

@@ -72,16 +72,16 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         base_chart = alt.Chart(data).properties(
             width=width,
             height=height,
-            background='#181C24',
+            background='#F8F8FF',
             title=alt.TitleParams(
                 text=title,
                 fontSize=title_font_size,
-                color='#F8F8FF',
+                color='#2E3440',
                 fontWeight='bold'
             )
         ).configure_axis(
-            labelColor='#F8F8FF',
-            titleColor='#F8F8FF',
+            labelColor='#000000',
+            titleColor='#000000',
             labelFontSize=axis_font_size,
             titleFontSize=axis_font_size,
             tickColor='#F8F8FF',
@@ -90,7 +90,7 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
             strokeOpacity=0
         ).configure_text(
             fontSize=font_size,
-            color='#F8F8FF'
+            color='#ffffff'
         )
     except Exception as e:
         st.warning(f"⚠️ Error creating Altair chart: {str(e)}")
@@ -216,8 +216,8 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         fig.update_layout(
             title=title_config,
             font=font_config,
-            plot_bgcolor='#181C24',
-            paper_bgcolor='#181C24',
+            plot_bgcolor='#F8F8FF',
+            paper_bgcolor='#F8F8FF',
             width=width,
             height=height,
             xaxis=axis_config,

@@ -12,9 +12,9 @@ gatherUsageStats = false
 [theme]
 base="dark"
 primaryColor="#2979ff"
-backgroundColor="#181C24"
-secondaryBackgroundColor="#232B36"
-textColor="#F8F8FF"
+backgroundColor="#F8F8FF"
+secondaryBackgroundColor="#F8F8FF"
+textColor="#151B25"
 font="sans-serif"
 
 [runner]

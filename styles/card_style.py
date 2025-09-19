@@ -8,7 +8,7 @@ CARD_STYLE = """
     background: var(--surface);
     border-radius: 14px;
     border: 1px solid rgba(31, 75, 153, 0.12);
-    box-shadow: 0 12px 30px -18px rgba(16, 24, 40, 0.35);
+    box-shadow: 0 12px 30px -18px rgba(0, 112, 192, 0.35);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
   }
@@ -16,8 +16,8 @@ CARD_STYLE = """
   .sd-metric-card {
     background: var(--surface);
     border-radius: 14px;
-    border: 1px solid rgba(19, 163, 110, 0.18);
-    box-shadow: 0 16px 28px -20px rgba(19, 163, 110, 0.65);
+    border: 1px solid rgba(0, 112, 192, 0.18);
+    box-shadow: 0 16px 28px -20px rgba(0, 112,192, 0.65);
     padding: 1.2rem 1.4rem;
     display: flex;
     flex-direction: column;

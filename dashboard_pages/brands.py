@@ -1,4 +1,4 @@
-"""Brands analysis dashboard page."""
+"""Brands analysis dashboard backed by survey responses."""
 from __future__ import annotations
 
 import pandas as pd
@@ -8,78 +8,123 @@ import streamlit as st
 from backend_client import get_backend_client
 from styles.card_style import apply_card_styles
 
+RESPONSE_LIMIT = 20000
 
-LEGACY_LIMIT = 2000
 
-
-def _load_legacy_data() -> pd.DataFrame:
-    """Fetch legacy survey data from the backend if available."""
-    client = get_backend_client()
-    if not client:
-        return pd.DataFrame()
-
-    if not hasattr(client, "get_legacy_survey_data"):
-        st.error("Legacy survey data method not available on backend client.")
-        return pd.DataFrame()
-
+def _get_survey_options(client) -> list[str]:
+    surveys: list[str] = []
     try:
-        return client.get_legacy_survey_data(limit=LEGACY_LIMIT)
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"Unable to load legacy survey data: {exc}")
+        survey_index = client.get_surveys_index()
+        if isinstance(survey_index, pd.DataFrame) and not survey_index.empty:
+            if "survey" in survey_index.columns:
+                surveys.extend(survey_index["survey"].dropna().astype(str).tolist())
+            if "title" in survey_index.columns:
+                surveys.extend(survey_index["title"].dropna().astype(str).tolist())
+        summary = client.get_survey_summary()
+        if isinstance(summary, dict):
+            summary_surveys = summary.get("surveys", [])
+            for item in summary_surveys:
+                if isinstance(item, str):
+                    surveys.append(item)
+                elif isinstance(item, dict):
+                    title = item.get("survey_title") or item.get("title")
+                    if title:
+                        surveys.append(str(title))
+    except Exception:
+        # Defer to backend error handlers already surfaced via Streamlit.
+        pass
+
+    unique_surveys = sorted({name for name in surveys if name})
+    # Prefer funeral cover surveys for this dashboard.
+    funeral_like = [name for name in unique_surveys if "funeral" in name.lower() or name.lower().startswith("fi027") or name.lower().startswith("fi028")]
+    if funeral_like:
+        return funeral_like
+    return unique_surveys
+
+
+def _load_responses(client, survey: str) -> pd.DataFrame:
+    if not survey:
         return pd.DataFrame()
+    try:
+        responses = client.get_responses(survey=survey, limit=RESPONSE_LIMIT)
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Unable to load responses for {survey}: {exc}")
+        return pd.DataFrame()
+    return responses if isinstance(responses, pd.DataFrame) else pd.DataFrame()
 
 
 def _render_filters(data: pd.DataFrame) -> pd.DataFrame:
-    """Render filter controls and return the filtered dataframe."""
     if data.empty:
         return data
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        genders = ["All"] + sorted(data["gender"].dropna().unique()) if "gender" in data.columns else ["All"]
+        genders = ["All"]
+        if "gender" in data.columns:
+            genders += sorted(data["gender"].dropna().unique())
         gender_choice = st.selectbox("Gender", genders)
 
     with col2:
-        ages = ["All"] + sorted(data["age_group"].dropna().unique()) if "age_group" in data.columns else ["All"]
+        ages = ["All"]
+        if "age_group" in data.columns:
+            ages += sorted(data["age_group"].dropna().unique())
         age_choice = st.selectbox("Age group", ages)
 
     with col3:
-        employment_values = ["All"]
-        if "employment_status" in data.columns:
-            values = data["employment_status"].dropna().astype(str).unique()
-            employment_values += sorted(values)
-        employment_choice = st.selectbox("Employment status", employment_values)
+        provinces = ["All"]
+        if "home_province" in data.columns:
+            provinces += sorted(data["home_province"].dropna().unique())
+        province_choice = st.selectbox("Province", provinces)
+
+    with col4:
+        segments = ["All"]
+        if "sem_segment" in data.columns:
+            segments += sorted(data["sem_segment"].dropna().unique())
+        segment_choice = st.selectbox("SEM segment", segments)
 
     filtered = data.copy()
-    if gender_choice != "All":
+    if gender_choice != "All" and "gender" in filtered.columns:
         filtered = filtered[filtered["gender"] == gender_choice]
-    if age_choice != "All":
+    if age_choice != "All" and "age_group" in filtered.columns:
         filtered = filtered[filtered["age_group"] == age_choice]
-    if employment_choice != "All":
-        filtered = filtered[filtered["employment_status"].astype(str) == employment_choice]
+    if province_choice != "All" and "home_province" in filtered.columns:
+        filtered = filtered[filtered["home_province"] == province_choice]
+    if segment_choice != "All" and "sem_segment" in filtered.columns:
+        filtered = filtered[filtered["sem_segment"] == segment_choice]
+
+    if len(filtered) < len(data):
+        st.info(f"Showing {len(filtered):,} of {len(data):,} responses after filters.")
 
     return filtered
 
 
 def _render_question_analysis(data: pd.DataFrame) -> None:
-    if data.empty or "survey_question" not in data.columns:
+    if data.empty or "q" not in data.columns:
         return
 
-    st.subheader("Survey question analysis")
-    question_options = sorted(data["survey_question"].dropna().unique())
-    if not question_options:
-        st.info("No questions available in the filtered dataset.")
+    st.subheader("Question responses")
+    questions = sorted(data["q"].dropna().unique())
+    if not questions:
+        st.info("No questions available in this dataset.")
         return
 
-    selected_question = st.selectbox("Select a question", question_options)
-    question_data = data[data["survey_question"] == selected_question]
-    if question_data.empty:
-        st.info("No responses for the selected question.")
+    selected_questions = st.multiselect("Select question(s)", questions, default=questions[:1])
+    if not selected_questions:
+        st.info("Select at least one question to view response distributions.")
         return
 
-    if "response" in question_data.columns:
-        response_counts = question_data["response"].fillna("Unknown").value_counts()
+    for question in selected_questions:
+        question_data = data[data["q"] == question]
+        if question_data.empty:
+            st.info(f"No responses for '{question}'.")
+            continue
+
+        if "resp" not in question_data.columns:
+            st.info(f"Response column not present for '{question}'.")
+            continue
+
+        response_counts = question_data["resp"].fillna("Unknown").value_counts()
         total = int(response_counts.sum()) or 1
         distribution = pd.DataFrame(
             {
@@ -89,24 +134,24 @@ def _render_question_analysis(data: pd.DataFrame) -> None:
             }
         )
 
+        st.markdown(f"#### {question}")
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.markdown("#### Response distribution")
             st.dataframe(distribution, hide_index=True, use_container_width=True)
             st.download_button(
                 "Download distribution (CSV)",
                 distribution.to_csv(index=False),
-                file_name=f"legacy_distribution_{selected_question[:40].replace(' ', '_')}.csv",
+                file_name=f"brand_distribution_{question[:40].replace(' ', '_')}.csv",
+                key=f"download_{abs(hash(question))}",
             )
 
         with col2:
-            st.markdown("#### Visualisation")
             fig = px.pie(
                 distribution,
                 values="Count",
                 names="Response",
-                title="Responses",
+                title="Response share",
                 color_discrete_sequence=px.colors.qualitative.Set3,
             )
             fig.update_traces(textposition="inside", textinfo="percent+label")
@@ -117,71 +162,55 @@ def _render_demographics(data: pd.DataFrame) -> None:
     if data.empty:
         return
 
-    st.subheader("Demographics")
+    st.subheader("Demographic insights")
     col1, col2 = st.columns(2)
 
     if "gender" in data.columns:
-        gender_counts = data["gender"].fillna("Unknown").value_counts()
         with col1:
-            fig_gender = px.pie(
-                values=gender_counts.values,
-                names=gender_counts.index,
+            counts = data["gender"].fillna("Unknown").value_counts()
+            fig = px.pie(
+                values=counts.values,
+                names=counts.index,
                 title="Gender distribution",
                 color_discrete_sequence=px.colors.qualitative.Pastel,
             )
-            fig_gender.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_gender, use_container_width=True)
+            fig.update_traces(textposition="inside", textinfo="percent+label")
+            st.plotly_chart(fig, use_container_width=True)
 
     if "age_group" in data.columns:
-        age_counts = data["age_group"].fillna("Unknown").value_counts().sort_index()
         with col2:
-            fig_age = px.bar(
-                x=age_counts.index,
-                y=age_counts.values,
+            counts = data["age_group"].fillna("Unknown").value_counts().sort_index()
+            fig = px.bar(
+                x=counts.index,
+                y=counts.values,
                 title="Age group distribution",
-                color=age_counts.values,
+                color=counts.values,
                 color_continuous_scale="viridis",
             )
-            fig_age.update_layout(showlegend=False, xaxis_title="Age group", yaxis_title="Responses")
-            st.plotly_chart(fig_age, use_container_width=True)
+            fig.update_layout(showlegend=False, xaxis_title="Age group", yaxis_title="Responses")
+            st.plotly_chart(fig, use_container_width=True)
 
-
-def _render_survey_summary(data: pd.DataFrame) -> None:
-    if data.empty or "survey_title" not in data.columns:
-        return
-
-    st.subheader("Survey summary")
-    counts = data["survey_title"].value_counts()
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        fig = px.bar(
-            x=counts.values,
-            y=counts.index,
-            orientation="h",
-            title="Responses by survey",
-            color=counts.values,
-            color_continuous_scale="Blues",
+    if "home_province" in data.columns:
+        counts = data["home_province"].fillna("Unknown").value_counts()
+        st.markdown("#### Province distribution")
+        st.dataframe(
+            pd.DataFrame({"Province": counts.index, "Responses": counts.values}),
+            hide_index=True,
+            use_container_width=True,
         )
-        fig.update_layout(showlegend=False, xaxis_title="Responses", yaxis_title="Survey title")
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        table = pd.DataFrame({"Survey title": counts.index, "Responses": counts.values})
-        st.dataframe(table, hide_index=True, use_container_width=True)
 
 
-def _render_metrics(data: pd.DataFrame) -> None:
+def _render_metrics(data: pd.DataFrame, selected_surveys: list[str]) -> None:
     total = len(data)
-    surveys = data["survey_title"].nunique() if "survey_title" in data.columns else 0
-    questions = data["survey_question"].nunique() if "survey_question" in data.columns else 0
-    profiles = data["profile_id"].nunique() if "profile_id" in data.columns else 0
+    unique_profiles = data["pid"].nunique() if "pid" in data.columns else 0
+    unique_questions = data["q"].nunique() if "q" in data.columns else 0
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total responses", f"{total:,}")
-    col2.metric("Unique surveys", f"{surveys:,}")
-    col3.metric("Unique questions", f"{questions:,}")
-    col4.metric("Unique profiles", f"{profiles:,}")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Selected surveys", len(selected_surveys))
+    col2.metric("Responses", f"{total:,}")
+    col3.metric("Unique participants", f"{unique_profiles:,}")
+
+    st.caption(f"Questions covered: {unique_questions:,}")
 
 
 def main() -> None:
@@ -189,22 +218,44 @@ def main() -> None:
     st.markdown("---")
     apply_card_styles()
 
-    legacy_data = _load_legacy_data()
-    if legacy_data.empty:
-        st.warning("No legacy survey data available for brands analysis.")
+    client = get_backend_client()
+    if not client:
+        st.error("Backend connection unavailable for brands analysis.")
         return
 
-    st.success(f"Loaded {len(legacy_data):,} legacy survey responses.")
+    survey_options = _get_survey_options(client)
+    if not survey_options:
+        st.warning("No surveys available for analysis.")
+        return
 
-    filtered = _render_filters(legacy_data)
+    selected_surveys = st.multiselect("Select survey(s)", survey_options, default=survey_options[:1])
+    if not selected_surveys:
+        st.info("Select at least one survey to load data.")
+        return
+
+    frames = []
+    for survey in selected_surveys:
+        df = _load_responses(client, survey)
+        if not df.empty:
+            if "title" not in df.columns:
+                df["title"] = survey
+            frames.append(df)
+    if not frames:
+        st.warning("No data returned for the selected survey(s).")
+        return
+
+    responses = pd.concat(frames, ignore_index=True, copy=False)
+
+    st.success(f"Loaded {len(responses):,} responses across {len(selected_surveys)} survey(s).")
+
+    filtered = _render_filters(responses)
     if filtered.empty:
         st.warning("No data available after applying filters.")
         return
 
-    _render_metrics(filtered)
+    _render_metrics(filtered, selected_surveys)
     _render_question_analysis(filtered)
     _render_demographics(filtered)
-    _render_survey_summary(filtered)
 
 
 if __name__ == "__main__":

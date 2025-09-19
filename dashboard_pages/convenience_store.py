@@ -20,8 +20,21 @@ def load_convenience_store_data():
             # Load data from convenience store survey with full data
             survey_data = client.get_individual_survey("TP005_Convinience_Store_Products_Survey_Briefing_Form", limit=1000)  # Use limit for cost efficiency
             if not survey_data.empty:
-                # Add survey identifier
-                survey_data['SURVEY_ID'] = "TP005_Convinience_Store_Products_Survey_Briefing_Form"
+                column_map = {
+                    'pid': 'PROFILE_ID',
+                    'profile_id': 'PROFILE_ID',
+                    'q': 'SURVEY_QUESTION',
+                    'question': 'SURVEY_QUESTION',
+                    'resp': 'RESPONSE',
+                    'response': 'RESPONSE',
+                    'ts': 'SURVEY_DATE',
+                    'timestamp': 'SURVEY_DATE',
+                    'title': 'SURVEY_ID',
+                }
+                survey_data = survey_data.rename(columns={k: v for k, v in column_map.items() if k in survey_data.columns})
+                if 'SURVEY_ID' not in survey_data.columns:
+                    survey_data['SURVEY_ID'] = "TP005_Convinience_Store_Products_Survey_Briefing_Form"
+                survey_data['SURVEY_ID'] = survey_data['SURVEY_ID'].fillna("TP005_Convinience_Store_Products_Survey_Briefing_Form")
                 return survey_data
             else:
                 return None
@@ -109,13 +122,13 @@ def calculate_convenience_metrics(data):
     
     for col in data.columns:
         col_lower = col.lower()
-        if 'profile' in col_lower and 'id' in col_lower:
+        if ('profile' in col_lower and 'id' in col_lower) or col_lower == 'pid':
             profile_col = col
-        elif 'question' in col_lower:
+        elif 'question' in col_lower or col_lower in {'q'}:
             question_col = col
-        elif 'response' in col_lower:
+        elif 'response' in col_lower or col_lower in {'resp'}:
             response_col = col
-        elif 'date' in col_lower or 'timestamp' in col_lower:
+        elif 'date' in col_lower or 'timestamp' in col_lower or col_lower in {'ts'}:
             date_col = col
     
     total_responses = len(data)
@@ -209,8 +222,10 @@ def main():
             st.session_state.show_filters = not st.session_state.show_filters
         
         # Get filter options
-        questions = convenience_data['SURVEY_QUESTION'].unique().tolist() if 'SURVEY_QUESTION' in convenience_data.columns else []
-        responses = convenience_data['RESPONSE'].unique().tolist() if 'RESPONSE' in convenience_data.columns else []
+        question_column = 'SURVEY_QUESTION' if 'SURVEY_QUESTION' in convenience_data.columns else ('q' if 'q' in convenience_data.columns else None)
+        response_column = 'RESPONSE' if 'RESPONSE' in convenience_data.columns else ('resp' if 'resp' in convenience_data.columns else None)
+        questions = convenience_data[question_column].unique().tolist() if question_column else []
+        responses = convenience_data[response_column].unique().tolist() if response_column else []
         
         if st.session_state.show_filters:
             selected_questions = st.multiselect(
@@ -234,15 +249,15 @@ def main():
         # Apply filters
         filtered_data = convenience_data.copy()
         
-        if 'SURVEY_QUESTION' in convenience_data.columns:
-            filtered_data = filtered_data[filtered_data['SURVEY_QUESTION'].isin(selected_questions)]
-        if 'RESPONSE' in convenience_data.columns:
-            filtered_data = filtered_data[filtered_data['RESPONSE'].isin(selected_responses)]
+        if question_column:
+            filtered_data = filtered_data[filtered_data[question_column].isin(selected_questions)]
+        if response_column:
+            filtered_data = filtered_data[filtered_data[response_column].isin(selected_responses)]
         
         # Check if filters are applied
         filters_applied = (
-            len(selected_questions) < len(questions) or
-            len(selected_responses) < len(responses)
+            question_column and len(selected_questions) < len(questions) or
+            response_column and len(selected_responses) < len(responses)
         )
         
         if filters_applied:
@@ -258,9 +273,9 @@ def main():
     # Response Distribution Chart
     st.markdown("### 📊 Response Distribution")
     
-    if not filtered_data.empty and 'SURVEY_QUESTION' in filtered_data.columns and 'RESPONSE' in filtered_data.columns:
+    if not filtered_data.empty and question_column and response_column:
         # Create response distribution chart
-        response_counts = filtered_data.groupby(['SURVEY_QUESTION', 'RESPONSE']).size().reset_index(name='count')
+        response_counts = filtered_data.groupby([question_column, response_column]).size().reset_index(name='count')
         
         # Create a bar chart
         fig = px.bar(
@@ -287,7 +302,7 @@ def main():
         
         # Summary table
         st.markdown("#### Summary Table")
-        summary_table = response_counts.pivot(index='SURVEY_QUESTION', columns='RESPONSE', values='count').fillna(0)
+        summary_table = response_counts.pivot(index=question_column, columns=response_column, values='count').fillna(0)
         st.dataframe(summary_table, width='stretch')
     else:
         st.info("No response data available for visualization")

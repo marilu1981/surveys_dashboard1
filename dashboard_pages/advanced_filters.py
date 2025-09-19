@@ -186,3 +186,14 @@ def render_filter_summary(filters: Dict[str, Any], data: Optional[Dict[str, Any]
         
         if pagination.get('has_more', False):
             st.warning("⚠️ Results are limited by the data limit filter. Increase the limit to see more data.")
+
+
+def main():
+    filters = render_advanced_filters()
+    if filters:
+        st.sidebar.success("Filters applied. Please navigate to the desired dashboard.")
+
+
+if __name__ == "__main__":
+    main()
+

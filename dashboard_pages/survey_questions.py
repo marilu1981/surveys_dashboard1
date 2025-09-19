@@ -31,6 +31,14 @@ def get_real_data():
         # Try to get Profile Survey data first (most comprehensive)
         responses = client.get_responses(survey="SB055_Profile_Survey1", limit=1000)
         
+        # Debug: Show data info
+        st.write("🔍 **Debug - Survey Questions Data Info:**")
+        st.write(f"Total responses: {len(responses)}")
+        st.write(f"Columns: {responses.columns.tolist()}")
+        if 'ts' in responses.columns:
+            st.write(f"Date range: {responses['ts'].min()} to {responses['ts'].max()}")
+        st.write("Sample data:", responses.head(2))
+        
         if responses.empty:
             # Fallback to survey index if responses endpoint fails
             st.info("📊 Responses endpoint unavailable, trying survey index...")

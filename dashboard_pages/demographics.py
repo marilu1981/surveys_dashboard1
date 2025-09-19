@@ -30,6 +30,9 @@ def get_real_data():
         # Try to get pre-computed demographics data first
         demographics_data = client.get_demographics()
         
+        # Debug: Show what demographics endpoint returns
+        st.write("🔍 **Debug - Demographics endpoint response:**", demographics_data)
+        
         if demographics_data and "error" not in demographics_data:
             # Use pre-computed demographics data
             return demographics_data, None, None, None, None

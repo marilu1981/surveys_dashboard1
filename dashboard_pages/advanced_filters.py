@@ -2,6 +2,7 @@
 Advanced Filtering Component for Survey Data
 """
 import streamlit as st
+import pandas as pd
 from backend_client import get_backend_client
 from typing import Dict, Any, Optional
 

@@ -150,6 +150,14 @@ def calculate_funeral_metrics(data):
     elif 'survey_title' in data.columns:
         survey_col = 'survey_title'
     
+    # Debug: Show column detection results
+    st.write("🔍 **Debug - Column Detection Results:**")
+    st.write(f"profile_col: {profile_col}")
+    st.write(f"question_col: {question_col}")
+    st.write(f"response_col: {response_col}")
+    st.write(f"date_col: {date_col}")
+    st.write(f"survey_col: {survey_col}")
+    
     total_responses = len(data)
     unique_profiles = data[profile_col].nunique() if profile_col else 0
     unique_questions = data[question_col].nunique() if question_col else 0

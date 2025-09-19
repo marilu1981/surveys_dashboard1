@@ -114,8 +114,10 @@ def render_precomputed_demographics(demographics_data):
         age_data = overall_demographics.get("age_group", {})
         if age_data:
             age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
-            fig_age = px.bar(age_df, x='Age Group', y='Count', title="Age")
-            fig_age.update_layout(xaxis_tickangle=-45)
+            total_age = age_df['Count'].sum()
+            age_df['Percentage'] = (age_df['Count'] / total_age * 100).round(1)
+            fig_age = px.bar(age_df, x='Age Group', y='Percentage', title="Age")
+            fig_age.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_age, width='stretch')
     
     # Row 2: Employment and Salary Bands
@@ -126,8 +128,10 @@ def render_precomputed_demographics(demographics_data):
         employment_data = overall_demographics.get("employment", {})
         if employment_data:
             employment_df = pd.DataFrame(list(employment_data.items()), columns=['Employment', 'Count'])
-            fig_employment = px.bar(employment_df, x='Employment', y='Count', title="Employment")
-            fig_employment.update_layout(xaxis_tickangle=-45)
+            total_employment = employment_df['Count'].sum()
+            employment_df['Percentage'] = (employment_df['Count'] / total_employment * 100).round(1)
+            fig_employment = px.bar(employment_df, x='Employment', y='Percentage', title="Employment")
+            fig_employment.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_employment, width='stretch')
     
     with col4:
@@ -135,8 +139,10 @@ def render_precomputed_demographics(demographics_data):
         salary_data = overall_demographics.get("salary", {})
         if salary_data:
             salary_df = pd.DataFrame(list(salary_data.items()), columns=['Salary Band', 'Count'])
-            fig_salary = px.bar(salary_df, x='Salary Band', y='Count', title="Salary Bands")
-            fig_salary.update_layout(xaxis_tickangle=-45)
+            total_salary = salary_df['Count'].sum()
+            salary_df['Percentage'] = (salary_df['Count'] / total_salary * 100).round(1)
+            fig_salary = px.bar(salary_df, x='Salary Band', y='Percentage', title="Salary Bands")
+            fig_salary.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_salary, width='stretch')
     
     # Row 3: Region and SEM
@@ -147,8 +153,10 @@ def render_precomputed_demographics(demographics_data):
         region_data = overall_demographics.get("region", {})
         if region_data:
             region_df = pd.DataFrame(list(region_data.items()), columns=['Region', 'Count'])
-            fig_region = px.bar(region_df, x='Region', y='Count', title="Region")
-            fig_region.update_layout(xaxis_tickangle=-45)
+            total_region = region_df['Count'].sum()
+            region_df['Percentage'] = (region_df['Count'] / total_region * 100).round(1)
+            fig_region = px.bar(region_df, x='Region', y='Percentage', title="Region")
+            fig_region.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_region, width='stretch')
     
     with col6:
@@ -156,8 +164,10 @@ def render_precomputed_demographics(demographics_data):
         sem_data = overall_demographics.get("sem", {})
         if sem_data:
             sem_df = pd.DataFrame(list(sem_data.items()), columns=['SEM', 'Count'])
-            fig_sem = px.bar(sem_df, x='SEM', y='Count', title="SEM")
-            fig_sem.update_layout(xaxis_tickangle=-45)
+            total_sem = sem_df['Count'].sum()
+            sem_df['Percentage'] = (sem_df['Count'] / total_sem * 100).round(1)
+            fig_sem = px.bar(sem_df, x='SEM', y='Percentage', title="SEM")
+            fig_sem.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_sem, width='stretch')
     
     # Row 4: Main Source of Income and Side Hustles
@@ -170,16 +180,20 @@ def render_precomputed_demographics(demographics_data):
         money_source_question = response_distributions.get("What is your main source of money?", {})
         if money_source_question:
             money_source_df = pd.DataFrame(list(money_source_question.items()), columns=['Source', 'Count'])
-            fig_money = px.bar(money_source_df, x='Source', y='Count', title="Main Source of Income")
-            fig_money.update_layout(xaxis_tickangle=-45)
+            total_money = money_source_df['Count'].sum()
+            money_source_df['Percentage'] = (money_source_df['Count'] / total_money * 100).round(1)
+            fig_money = px.bar(money_source_df, x='Source', y='Percentage', title="Main Source of Income")
+            fig_money.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_money, width='stretch')
     
     with col8:
         # Side Hustles Bar Chart
         if side_hustles:
             side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
-            fig_hustles = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles")
-            fig_hustles.update_layout(xaxis_tickangle=-45)
+            total_hustles = side_hustles_df['Count'].sum()
+            side_hustles_df['Percentage'] = (side_hustles_df['Count'] / total_hustles * 100).round(1)
+            fig_hustles = px.bar(side_hustles_df, x='Side Hustle Type', y='Percentage', title="Side Hustles")
+            fig_hustles.update_layout(xaxis_tickangle=-45, yaxis_title="% of Total")
             st.plotly_chart(fig_hustles, width='stretch')
         
     # Additional Question Analysis
@@ -222,37 +236,6 @@ def render_precomputed_demographics(demographics_data):
                 yaxis_title="Mean SEM Score"
             )
             st.plotly_chart(fig, width='stretch')
-        
-        # SEM Groups Count and Percentage
-        if "count" in by_segment:
-            st.markdown("#### SEM Groups Count and Percentage")
-            sem_count_data = []
-            total_count = sum(by_segment["count"].values())
-            
-            for segment, count in by_segment["count"].items():
-                percentage = (count / total_count) * 100 if total_count > 0 else 0
-                sem_count_data.append({
-                    'SEM Segment': segment,
-                    'Count': count,
-                    'Percentage': percentage
-                })
-            
-            sem_count_df = pd.DataFrame(sem_count_data)
-            # Sort by segment number for better visualization
-            sem_count_df['Segment_Num'] = sem_count_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
-            sem_count_df = sem_count_df.sort_values('Segment_Num')
-            
-            # Create bar chart with count and percentage
-            fig_count = px.bar(sem_count_df, x='SEM Segment', y='Count', 
-                             title="SEM Groups Count and Percentage",
-                             text=sem_count_df['Percentage'].round(1).astype(str) + '%')
-            fig_count.update_layout(
-                xaxis_title="SEM Segment",
-                yaxis_title="Count",
-                showlegend=False
-            )
-            fig_count.update_traces(textposition='outside')
-            st.plotly_chart(fig_count, width='stretch')
     
     
 

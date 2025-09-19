@@ -1,77 +1,82 @@
+"""Reusable card helpers for consistent dashboard visuals."""
 import streamlit as st
 
-def apply_card_styles():
-    """Apply custom CSS for cards and dashboard look"""
-    st.markdown("""
-    <style>
-    .card {
-        background: #232B36;
-        border-radius: 16px;
-        box-shadow: 0 4px 24px 0 rgba(0,0,0,0.8);
-        padding: 2rem 1.5rem 1.5rem 1.5rem;
-        margin-bottom: 2rem;
-    }
-    .dashboard-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 2rem 1.5rem;
-    }
-    .card-title {
-        font-size: 1.2rem;
-        color: #f8f8ff;
-        margin-bottom: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-    }
-    .metric-value {
-        font-size: 2.2rem;
-        font-weight: 600;
-        color: #2979ff;
-        margin-bottom: 0.6rem;
-    }
-    .metric-card {
-        background: #232B36;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 12px 0 rgba(0,0,0,0.6);
-        border-left: 4px solid #2979ff;
-    }
-    .metric-card h4 {
-        color: #f8f8ff;
-        margin-bottom: 0.5rem;
-        font-size: 1.1rem;
-    }
-    .metric-card p {
-        color: #b0b0b0;
-        margin: 0;
-        font-size: 0.9rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
-def create_metric_card(title, value, description=None):
-    """Create a styled metric card"""
-    if description:
-        return f'''
-        <div class="metric-card">
-            <h4>{title}</h4>
-            <div class="metric-value">{value}</div>
-            <p>{description}</p>
-        </div>
-        '''
-    else:
-        return f'''
-        <div class="metric-card">
-            <h4>{title}</h4>
-            <div class="metric-value">{value}</div>
-        </div>
-        '''
+CARD_STYLE = """
+<style>
+  .sd-card {
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid rgba(31, 75, 153, 0.12);
+    box-shadow: 0 12px 30px -18px rgba(16, 24, 40, 0.35);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
 
-def create_dashboard_container():
-    """Start a dashboard container"""
-    st.markdown('<div class="dashboard-container">', unsafe_allow_html=True)
+  .sd-metric-card {
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid rgba(19, 163, 110, 0.18);
+    box-shadow: 0 16px 28px -20px rgba(19, 163, 110, 0.65);
+    padding: 1.2rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
 
-def end_dashboard_container():
-    """End a dashboard container"""
+  .sd-metric-card h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--muted-text);
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+
+  .sd-metric-card .metric-value {
+    font-size: calc(var(--metric-value-size));
+    font-weight: 700;
+    color: var(--brand-primary);
+  }
+
+  .sd-metric-card p {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--muted-text);
+  }
+
+  .sd-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+</style>
+"""
+
+
+def apply_card_styles() -> None:
+    """Ensure card styling CSS is present for the current page."""
+    st.markdown(CARD_STYLE, unsafe_allow_html=True)
+
+
+def create_metric_card(title: str, value: str, description: str | None = None) -> str:
+    """Return HTML for a metric tile."""
+    description_html = f"<p>{description}</p>" if description else ""
+    return (
+        f"<div class=\"sd-metric-card\">"
+        f"  <h4>{title}</h4>"
+        f"  <div class=\"metric-value\">{value}</div>"
+        f"  {description_html}"
+        f"</div>"
+    )
+
+
+def create_dashboard_container() -> None:
+    """Open a responsive grid container."""
+    st.markdown('<div class="sd-dashboard-grid">', unsafe_allow_html=True)
+
+
+def end_dashboard_container() -> None:
+    """Close the grid container."""
     st.markdown('</div>', unsafe_allow_html=True)

@@ -1,537 +1,243 @@
-"""
-Client for connecting to your existing GCP backend
-"""
-import streamlit as st
-import requests
-import pandas as pd
+﻿"""Robust Streamlit-friendly client for the Sebenza backend."""
+from __future__ import annotations
+
 import json
-from typing import Optional, Dict, Any
+import os
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+import pandas as pd
+import requests
+import streamlit as st
+
+DEFAULT_TIMEOUT = 20
+CACHE_HASH_FUNCS = {
+    "backend_client.BackendClient": lambda client: (client.base_url, client.api_key or ""),
+    "requests.sessions.Session": lambda _: None,
+}
+
 
 class BackendClient:
-    """Client for your existing GCP backend"""
-    
-    def __init__(self, base_url: str, api_key: Optional[str] = None):
-        self.base_url = base_url.rstrip('/')
+    """Thin HTTP client with Streamlit-aware helpers."""
+
+    def __init__(self, base_url: str, api_key: Optional[str] = None, timeout: int = DEFAULT_TIMEOUT) -> None:
+        if not base_url:
+            raise ValueError("base_url is required")
+        self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.timeout = timeout
         self.session = requests.Session()
-        
-        # Add authentication headers if API key provided
-        if self.api_key:
-            self.session.headers.update({
-                'Authorization': f'Bearer {self.api_key}',
-                'Content-Type': 'application/json'
-            })
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_surveys_index(_self) -> pd.DataFrame:
-        """Get lightweight survey index (1.3KB) from your backend"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/surveys")
-            response.raise_for_status()
-            
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
-                # Handle multiple JSON objects like in get_responses
-                response_text = response.text
-                if '} {' in response_text:
-                    json_objects = response_text.split('} {')
-                    if len(json_objects) > 1:
-                        json_objects[0] = json_objects[0] + '}'
-                        json_objects[-1] = '{' + json_objects[-1]
-                        
-                        parsed_objects = []
-                        for obj in json_objects:
-                            try:
-                                parsed_obj = json.loads(obj)
-                                parsed_objects.append(parsed_obj)
-                            except:
-                                continue
-                        
-                        if parsed_objects:
-                            return pd.DataFrame(parsed_objects)
-                
-                return pd.DataFrame()
-                
-        except Exception as e:
-            st.error(f"Error fetching survey summary: {str(e)}")
-            return pd.DataFrame()
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_responses(_self, survey: str, limit: int = 1000, **filters) -> pd.DataFrame:
-        """Get cached responses with compression from your backend - REQUIRES survey parameter"""
-        try:
-            # Build query parameters
-            params = {'survey': survey, 'limit': limit}
-            params.update(filters)
-            
-            # Use optimized endpoint with specific survey (REQUIRED)
-            response = _self.session.get(f"{_self.base_url}/api/responses", params=params)
-            
-            if response.status_code == 500:
-                st.warning(f"⚠️ Backend server error (500) for /api/responses. Survey parameter is required.")
-                return pd.DataFrame()
-            elif response.status_code == 400:
-                st.warning(f"⚠️ Bad request (400) for /api/responses. Check survey parameter: {survey}")
-                return pd.DataFrame()
-            
-            response.raise_for_status()
-            
-            # Parse the new API response structure
-            data = response.json()
-            
-            # Handle the new API format with data and pagination
-            if isinstance(data, dict) and 'data' in data:
-                df = pd.DataFrame(data['data'])
-                # Store pagination info for potential future use
-                if 'pagination' in data:
-                    st.session_state[f'pagination_{survey}'] = data['pagination']
-                return df
-            elif isinstance(data, list):
-                # Fallback for direct list format
-                return pd.DataFrame(data)
-            else:
-                st.warning(f"⚠️ Unexpected response format from /api/responses")
-                return pd.DataFrame()
-                
-        except Exception as e:
-            st.error(f"Error fetching responses: {str(e)}")
-            return pd.DataFrame()
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_individual_survey(_self, survey_id: str, limit: int = 100, full: bool = False) -> pd.DataFrame:
-        """Get individual survey data from your backend"""
-        try:
-            if full:
-                response = _self.session.get(f"{_self.base_url}/api/survey/{survey_id}?full=true")
-            else:
-                response = _self.session.get(f"{_self.base_url}/api/survey/{survey_id}?limit={limit}")
-            response.raise_for_status()
-            
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
-                # Handle multiple JSON objects like in get_responses
-                response_text = response.text
-                if '} {' in response_text:
-                    json_objects = response_text.split('} {')
-                    if len(json_objects) > 1:
-                        json_objects[0] = json_objects[0] + '}'
-                        json_objects[-1] = '{' + json_objects[-1]
-                        
-                        parsed_objects = []
-                        for json_str in json_objects:
-                            try:
-                                parsed_objects.append(json.loads(json_str))
-                            except json.JSONDecodeError:
-                                continue
-                        
-                        if parsed_objects:
-                            return pd.DataFrame(parsed_objects)
-                
-                # If all else fails, try to parse as CSV
-                try:
-                    from io import StringIO
-                    return pd.read_csv(StringIO(response_text))
-                except:
-                    pass
-                
-                return pd.DataFrame()
-                
-        except requests.exceptions.RequestException as e:
-            return pd.DataFrame()
-        except Exception as e:
-            return pd.DataFrame()
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_survey_group(_self, group_id: str, full: bool = True) -> pd.DataFrame:
-        """Get survey group data (combines all surveys in a group) from your backend"""
-        try:
-            url = f"{_self.base_url}/api/survey-group/{group_id}?full={str(full).lower()}"
-            st.write(f"🔗 Calling API: {url}")
-            response = _self.session.get(url)
-            st.write(f"📊 Response status: {response.status_code}")
-            response.raise_for_status()
-            
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
-                # Handle multiple JSON objects like in get_responses
-                response_text = response.text
-                if '} {' in response_text:
-                    json_objects = response_text.split('} {')
-                    if len(json_objects) > 1:
-                        json_objects[0] = json_objects[0] + '}'
-                        json_objects[-1] = '{' + json_objects[-1]
-                        
-                        parsed_objects = []
-                        for json_str in json_objects:
-                            try:
-                                parsed_objects.append(json.loads(json_str))
-                            except json.JSONDecodeError:
-                                continue
-                        
-                        if parsed_objects:
-                            return pd.DataFrame(parsed_objects)
-                
-                # If all else fails, try to parse as CSV
-                try:
-                    from io import StringIO
-                    return pd.read_csv(StringIO(response_text))
-                except:
-                    pass
-                
-                return pd.DataFrame()
-                
-        except requests.exceptions.RequestException as e:
-            st.error(f"Request error for survey group {group_id}: {str(e)}")
-            return pd.DataFrame()
-        except Exception as e:
-            st.error(f"Error loading survey group {group_id}: {str(e)}")
-            return pd.DataFrame()
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_health_surveys(_self, limit: int = 100) -> pd.DataFrame:
-        """Get health surveys data using the individual survey endpoint"""
-        try:
-            # Try to get health survey data using the new individual survey endpoint
-            response = _self.session.get(f"{_self.base_url}/api/survey/SB055_Profile_Survey1?limit={limit}")
-            response.raise_for_status()
-            
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
-                # Handle multiple JSON objects like in get_responses
-                response_text = response.text
-                if '} {' in response_text:
-                    json_objects = response_text.split('} {')
-                    if len(json_objects) > 1:
-                        json_objects[0] = json_objects[0] + '}'
-                        json_objects[-1] = '{' + json_objects[-1]
-                        
-                        parsed_objects = []
-                        for json_str in json_objects:
-                            try:
-                                parsed_objects.append(json.loads(json_str))
-                            except json.JSONDecodeError:
-                                continue
-                        
-                        if parsed_objects:
-                            return pd.DataFrame(parsed_objects)
-                
-                # If all else fails, try to parse as CSV
-                try:
-                    from io import StringIO
-                    return pd.read_csv(StringIO(response_text))
-                except:
-                    pass
-                
-                return pd.DataFrame()
-                
-        except requests.exceptions.RequestException as e:
-            return pd.DataFrame()
-        except Exception as e:
-            return pd.DataFrame()
 
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_brands_data(_self) -> pd.DataFrame:
-        """Get processed survey data brands from your backend (.ndjson format)"""
-        try:
-            # Try different possible endpoint variations
-            endpoints_to_try = [
-                f"{_self.base_url}/api/brands-data",
-                f"{_self.base_url}/api/processed-survey-data-brands",
-                f"{_self.base_url}/api/brands",
-                f"{_self.base_url}/api/processed_survey_data_brands",
-                f"{_self.base_url}/processed-survey-data-brands",
-                f"{_self.base_url}/brands"
-            ]
-            
-            response = None
-            for endpoint in endpoints_to_try:
-                try:
-                    response = _self.session.get(endpoint)
-                    if response.status_code == 200:
-                        break
-                except:
-                    continue
-            
-            if response is None or response.status_code != 200:
-                raise Exception(f"No valid endpoint found. Tried: {endpoints_to_try}")
-            
-            response.raise_for_status()
-            
-            # Handle .ndjson format (JSON Lines)
-            try:
-                # Split by lines and parse each JSON object
-                lines = response.text.strip().split('\n')
-                data = []
-                for line in lines:
-                    if line.strip():  # Skip empty lines
-                        try:
-                            parsed_line = json.loads(line)
-                            # Handle potential blank first column or empty keys
-                            if isinstance(parsed_line, dict):
-                                # Remove any keys with empty values or None
-                                cleaned_line = {k: v for k, v in parsed_line.items() 
-                                             if k is not None and k.strip() != '' and v is not None}
-                                if cleaned_line:  # Only add if there's actual data
-                                    data.append(cleaned_line)
-                        except json.JSONDecodeError:
-                            continue
-                
-                if data:
-                    df = pd.DataFrame(data)
-                    # Remove any columns that are completely empty or have no name
-                    df = df.dropna(axis=1, how='all')  # Remove columns that are all NaN
-                    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]  # Remove unnamed columns
-                    return df
-                else:
-                    return pd.DataFrame()
-                    
-            except Exception as json_err:
-                # Fallback: try to parse as regular JSON
-                try:
-                    data = response.json()
-                    if isinstance(data, list):
-                        return pd.DataFrame(data)
-                    elif isinstance(data, dict) and 'data' in data:
-                        return pd.DataFrame(data['data'])
-                    else:
-                        return pd.DataFrame()
-                except:
-                    return pd.DataFrame()
-                
-        except requests.exceptions.RequestException as e:
-            return pd.DataFrame()
-        except Exception as e:
-            return pd.DataFrame()
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        self.session.headers.update(headers)
 
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_survey_questions(_self) -> pd.DataFrame:
-        """Get survey questions from your backend"""
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[int] = None,
+    ) -> requests.Response:
+        url = f"{self.base_url}{path}" if path.startswith("/") else f"{self.base_url}/{path}"
         try:
-            response = _self.session.get(f"{_self.base_url}/api/survey-questions")
+            response = self.session.request(
+                method,
+                url,
+                params=params,
+                json=json_body,
+                timeout=timeout or self.timeout,
+            )
             response.raise_for_status()
-            
-            # Try to parse JSON - handle multiple JSON objects
-            try:
-                data = response.json()
-                if isinstance(data, list):
-                    return pd.DataFrame(data)
-                elif isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
-                else:
-                    return pd.DataFrame()
-            except json.JSONDecodeError as json_err:
-                # Handle multiple JSON objects like in get_responses
-                response_text = response.text
-                if '} {' in response_text:
-                    json_objects = response_text.split('} {')
-                    if len(json_objects) > 1:
-                        json_objects[0] = json_objects[0] + '}'
-                        json_objects[-1] = '{' + json_objects[-1]
-                        
-                        parsed_objects = []
-                        for obj in json_objects:
-                            try:
-                                parsed_obj = json.loads(obj)
-                                parsed_objects.append(parsed_obj)
-                            except:
-                                continue
-                        
-                        if parsed_objects:
-                            return pd.DataFrame(parsed_objects)
-                
-                return pd.DataFrame()
-                
-        except Exception as e:
-            st.error(f"Error fetching survey questions: {str(e)}")
-            return pd.DataFrame()
-    
-    @st.cache_data(ttl=60)  # Cache for 1 minute
-    def get_health_check(_self) -> Dict[str, Any]:
-        """Get health check with cache monitoring from your backend"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/health", timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_demographics(_self) -> Dict[str, Any]:
-        """Get pre-computed demographics breakdown for dashboard"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/demographics")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    @st.cache_data(ttl=3600)  # Cache for 1 hour (vocabulary doesn't change often)
-    def get_vocabulary(_self) -> Dict[str, Any]:
-        """Get vocabulary mappings for form dropdowns and filters"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/vocab")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    @st.cache_data(ttl=3600)  # Cache for 1 hour (schema doesn't change often)
-    def get_schema(_self) -> Dict[str, Any]:
-        """Get data schema documentation with field descriptions"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/schema")
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_filtered_responses(_self, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Get filtered and paginated survey responses with advanced filtering options"""
-        try:
-            params = {}
-            if filters:
-                # Convert filters to query parameters
-                for key, value in filters.items():
-                    if value is not None and value != '':
-                        params[key] = str(value)
-            
-            response = _self.session.get(f"{_self.base_url}/api/responses", params=params)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def export_profile_survey_csv(_self) -> str:
-        """Export profile survey data as CSV"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/reporting/profile-survey?format=csv")
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            return f"Error exporting CSV: {str(e)}"
-    
-    def test_connection(self) -> bool:
-        """Test if backend is accessible"""
-        try:
-            health_data = self.get_health_check()
-            return health_data.get("status") != "error"
-        except:
-            try:
-                # Try root endpoint if /api/health doesn't exist
-                response = self.session.get(f"{self.base_url}/", timeout=10)
-                return response.status_code == 200
-            except:
-                return False
+            return response
+        except requests.exceptions.HTTPError as exc:
+            status = exc.response.status_code if exc.response else "unknown"
+            detail = exc.response.text[:400] if exc.response else str(exc)
+            st.error(f"HTTP {status} calling {url}: {detail}")
+            raise
+        except requests.exceptions.RequestException as exc:
+            st.error(f"Network error calling {url}: {exc}")
+            raise
 
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_survey_summary(_self) -> dict:
-        """Get survey summary from your backend"""
-        try:
-            response = _self.session.get(f"{_self.base_url}/api/survey-summary")
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching survey summary: {str(e)}")
-            return {}
-        except Exception as e:
-            st.error(f"Error parsing survey summary: {str(e)}")
-            return {}
-    
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
-    def get_legacy_survey_data(_self, limit: int = 1000, **filters) -> pd.DataFrame:
-        """Get legacy survey data with filtering capabilities"""
-        try:
-            # Build query parameters
-            params = {'limit': limit}
-            
-            # Add filters if provided
-            for key, value in filters.items():
-                if value is not None and value != '':
-                    params[key] = value
-            
-            response = _self.session.get(f"{_self.base_url}/api/legacy-survey-data", params=params)
-            response.raise_for_status()
-            
-            # Parse JSON response
-            data = response.json()
-            
+    @staticmethod
+    def _coerce_dataframe(payload: Any) -> pd.DataFrame:
+        if isinstance(payload, pd.DataFrame):
+            return payload
+        if isinstance(payload, list):
+            return pd.DataFrame(payload)
+        if isinstance(payload, dict):
+            data = payload.get("data")
             if isinstance(data, list):
                 return pd.DataFrame(data)
-            elif isinstance(data, dict) and 'data' in data:
-                return pd.DataFrame(data['data'])
-            else:
-                return pd.DataFrame()
-                
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error fetching legacy survey data: {str(e)}")
-            return pd.DataFrame()
-        except Exception as e:
-            st.error(f"Error parsing legacy survey data: {str(e)}")
-            return pd.DataFrame()
+        return pd.DataFrame()
 
-# Global backend client
-@st.cache_resource
-def get_backend_client():
-    """Get cached backend client with fallback configuration"""
-    try:
-        # Try to get configuration from secrets first
+    @staticmethod
+    def _safe_json(response: requests.Response) -> Any:
         try:
-            if hasattr(st, 'secrets') and 'backend' in st.secrets:
-                config = st.secrets['backend']
-                base_url = config.get('base_url')
-                api_key = config.get('api_key')
-            else:
-                raise Exception("Secrets not available")
-        except Exception as secrets_error:
-            # Fallback to hardcoded values for deployment
-            base_url = "https://ansebmrsurveysv1.oa.r.appspot.com"
-            api_key = ""
-        
-        if not base_url:
-            st.error("❌ Backend base_url not configured")
-            return None
-        
-        client = BackendClient(base_url, api_key)
-        
-        # Test connection
-        if client.test_connection():
-            return client
+            return response.json()
+        except json.JSONDecodeError:
+            text = response.text.strip()
+            if not text:
+                return {}
+            fragments = []
+            buffer = ""
+            depth = 0
+            for char in text:
+                buffer += char
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        fragments.append(buffer)
+                        buffer = ""
+            rows = []
+            for fragment in fragments:
+                try:
+                    rows.append(json.loads(fragment))
+                except json.JSONDecodeError:
+                    continue
+            return rows
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_surveys_index(self) -> pd.DataFrame:
+        response = self._request("GET", "/api/surveys")
+        payload = self._safe_json(response)
+        df = self._coerce_dataframe(payload)
+        return df
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_responses(self, *, survey: str, limit: int = 1000, **filters: Any) -> pd.DataFrame:
+        if not survey:
+            raise ValueError("survey parameter is required for get_responses")
+        params: Dict[str, Any] = {"survey": survey, "limit": limit}
+        params.update({k: v for k, v in filters.items() if v not in (None, "")})
+
+        response = self._request("GET", "/api/responses", params=params)
+        payload = self._safe_json(response)
+        df = self._coerce_dataframe(payload)
+        return df
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_individual_survey(self, survey_id: str, *, limit: int = 100, full: bool = False) -> pd.DataFrame:
+        path = f"/api/survey/{survey_id}"
+        params: Dict[str, Any]
+        if full:
+            params = {"full": "true"}
         else:
-            return None
-            
-    except Exception as e:
-        st.error(f"❌ Error creating backend client: {str(e)}")
+            params = {"limit": limit}
+        response = self._request("GET", path, params=params)
+        payload = self._safe_json(response)
+        return self._coerce_dataframe(payload)
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_survey_group(self, group_id: str, *, full: bool = True) -> pd.DataFrame:
+        params = {"full": str(full).lower()}
+        response = self._request("GET", f"/api/survey-group/{group_id}", params=params)
+        payload = self._safe_json(response)
+        return self._coerce_dataframe(payload)
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_survey_questions(self) -> pd.DataFrame:
+        response = self._request("GET", "/api/survey-questions")
+        payload = self._safe_json(response)
+        return self._coerce_dataframe(payload)
+
+    @st.cache_data(ttl=60, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_health_check(self) -> Dict[str, Any]:
+        response = self._request("GET", "/api/health", timeout=10)
+        payload = self._safe_json(response)
+        return payload if isinstance(payload, dict) else {"status": "unknown"}
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_demographics(self) -> Dict[str, Any]:
+        response = self._request("GET", "/api/demographics")
+        payload = self._safe_json(response)
+        return payload if isinstance(payload, dict) else {}
+
+    @st.cache_data(ttl=3600, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_vocabulary(self) -> Dict[str, Any]:
+        response = self._request("GET", "/api/vocab")
+        payload = self._safe_json(response)
+        return payload if isinstance(payload, dict) else {}
+
+    @st.cache_data(ttl=3600, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_schema(self) -> Dict[str, Any]:
+        response = self._request("GET", "/api/schema")
+        payload = self._safe_json(response)
+        return payload if isinstance(payload, dict) else {}
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_filtered_responses(self, filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+        params = {k: v for k, v in (filters or {}).items() if v not in (None, "")}
+        response = self._request("GET", "/api/responses", params=params)
+        payload = self._safe_json(response)
+        return self._coerce_dataframe(payload)
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_survey_summary(self) -> Dict[str, Any]:
+        response = self._request("GET", "/api/survey-summary")
+        payload = self._safe_json(response)
+        return payload if isinstance(payload, dict) else {}
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_legacy_survey_data(self, limit: int = 1000, **filters: Any) -> pd.DataFrame:
+        params = {"limit": limit}
+        params.update({k: v for k, v in filters.items() if v not in (None, "")})
+        response = self._request("GET", "/api/legacy-survey-data", params=params)
+        payload = self._safe_json(response)
+        return self._coerce_dataframe(payload)
+
+    def export_profile_survey_csv(self) -> str:
+        response = self._request("GET", "/api/reporting/profile-survey", params={"format": "csv"})
+        response.encoding = response.encoding or "utf-8"
+        return response.text
+
+    def test_connection(self) -> bool:
+        try:
+            health = self.get_health_check()
+            return str(health.get("status", "")).lower() == "ok"
+        except Exception:
+            return False
+
+
+@dataclass(frozen=True)
+class BackendConfig:
+    base_url: str
+    api_key: Optional[str]
+
+
+def _load_backend_config() -> Optional[BackendConfig]:
+    base_url = None
+    api_key = None
+
+    if hasattr(st, "secrets") and "backend" in st.secrets:
+        secrets_config = st.secrets["backend"]
+        base_url = secrets_config.get("base_url")
+        api_key = secrets_config.get("api_key")
+
+    base_url = os.getenv("SEBENZA_BACKEND_BASE_URL", base_url)
+    api_key = os.getenv("SEBENZA_BACKEND_API_KEY", api_key)
+
+    if not base_url:
+        return None
+    return BackendConfig(base_url=base_url, api_key=api_key)
+
+
+@st.cache_resource(show_spinner=False)
+def get_backend_client() -> Optional[BackendClient]:
+    config = _load_backend_config()
+    if not config:
+        st.error("Backend configuration is missing. Set SEBENZA_BACKEND_BASE_URL or update secrets.")
+        return None
+    try:
+        client = BackendClient(config.base_url, config.api_key)
+        if not client.test_connection():
+            st.warning("Backend reachable but health check is not OK.")
+        return client
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Unable to initialise backend client: {exc}")
         return None

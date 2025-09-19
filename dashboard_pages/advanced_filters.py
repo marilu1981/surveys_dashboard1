@@ -154,8 +154,12 @@ def get_filtered_data(filters: Dict[str, Any]) -> Optional[pd.DataFrame]:
             return None
             
         # Use the get_responses method with filters
-        data = client.get_responses(survey=filters['survey'], **filters)
-        return data
+        params = {k: v for k, v in filters.items() if v not in (None, "")}
+        survey_id = params.pop('survey', None)
+        if not survey_id:
+            st.warning('A survey must be selected before filtering.')
+            return None
+        data = client.get_responses(survey=survey_id, **params)
     except Exception as e:
         st.error(f"Error fetching filtered data: {str(e)}")
         return None

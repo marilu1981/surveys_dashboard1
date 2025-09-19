@@ -1,509 +1,373 @@
+﻿from __future__ import annotations
 
-import streamlit as st
-import pandas as pd
-import sys
+import importlib
 import os
-from urllib.parse import urlparse
+import sys
+from dataclasses import dataclass
+from typing import Callable, Optional
 
-# Add the dashboard_pages directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'dashboard_pages'))
+import pandas as pd
+import streamlit as st
 
-# Add the styles directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'styles'))
-
-# Import our new modules
-from card_style import apply_card_styles, create_metric_card
-from chart_utils import create_chart
+from backend_client import get_backend_client
+from chart_utils import create_altair_chart
+from styles.card_style import apply_card_styles, create_metric_card
 from styles.global_styles import inject_global_styles
 
-# Image service removed
+BASE_DIR = os.path.dirname(__file__)
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+DASHBOARD_DIR = os.path.join(BASE_DIR, "dashboard_pages")
+if DASHBOARD_DIR not in sys.path:
+    sys.path.append(DASHBOARD_DIR)
 
-# Import the page functions (lazy loading to prevent startup crashes)
-# from demographics import main as demographics_main
-# from survey_questions import main as survey_questions_main
-# from auth_config import get_authenticator
-
-# Page configuration
 st.set_page_config(
     page_title="Sebenza Surveys Dashboard",
-    page_icon="🚕",
+    page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Suppress some Streamlit warnings
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+inject_global_styles()
 
-# No need for CSS to hide pages since they're moved out of the pages/ directory
 
-def main():
-    # Apply global styles
-    inject_global_styles()
-    
-    # Temporarily disable authentication for deployment testing
-    # try:
-    #     # Authentication
-    #     authenticator = get_authenticator()
-    #     
-    #     # Check if user is authenticated
-    #     if 'authentication_status' not in st.session_state:
-    #         st.session_state.authentication_status = None
-    #     
-    #     # Show login form if not authenticated
-    #     if st.session_state.authentication_status != True:
-    #         st.title("🔐 Surveys Dashboard Login")
-    #         st.markdown("Please log in to access the dashboard")
-    #         
-    #         name, authentication_status, username = authenticator.login('Login', 'main')
-    #         
-    #         if authentication_status == False:
-    #             st.error('Username/password is incorrect')
-    #         elif authentication_status == None:
-    #             st.warning('Please enter your username and password')
-    #         else:
-    #             st.session_state.authentication_status = True
-    #             st.session_state.name = name
-    #             st.session_state.username = username
-    #             st.rerun()
-    #         
-    #         return
-    # except Exception as e:
-    #     st.error(f"Authentication error: {str(e)}")
-    #     st.info("Please check your authentication configuration")
-    #     return
-    
-    # User is authenticated, show the dashboard
-    # st.sidebar.write(f'Welcome *{st.session_state.name}*')
-    
-    # Add logout button
-    # if st.sidebar.button('Logout'):
-    #     authenticator.logout('Logout', 'sidebar')
-    #     st.session_state.authentication_status = False
-    #     st.rerun()
-    
-    # Initialize session state for navigation
-    if 'current_page' not in st.session_state:
-        st.session_state.current_page = 'home'
-    
-    # Sidebar navigation
+@dataclass(frozen=True)
+class Page:
+    label: str
+    page_id: str
+    render: Callable[[], None]
+
+
+def lazy_page(module_path: str, attribute: str) -> Callable[[], None]:
+    """Return a renderer that imports the module on demand."""
+
+    def _renderer() -> None:
+        try:
+            module = importlib.import_module(module_path)
+            getattr(module, attribute)()
+        except ModuleNotFoundError as exc:
+            st.error(f"Page module '{module_path}' is not available.")
+            st.exception(exc)
+        except Exception as exc:  # noqa: BLE001 - show useful details in UI
+            st.error("The page failed to load.")
+            st.exception(exc)
+
+    return _renderer
+
+
+def get_navigation() -> tuple[Page, ...]:
+    return (
+        Page("Home", "home", show_home_page),
+        Page("Demographics", "demographics", lazy_page("dashboard_pages.demographics", "main")),
+        Page("Profile Surveys", "profile", lazy_page("dashboard_pages.profile_surveys", "main")),
+        Page("Health Surveys", "health", lazy_page("dashboard_pages.health", "main")),
+        Page("Brands", "brands", lazy_page("dashboard_pages.brands", "main")),
+        Page("Funeral Cover", "funeral", lazy_page("dashboard_pages.funeral_cover", "main")),
+        Page("Cellphone", "cellphone", lazy_page("dashboard_pages.cellphone_survey", "main")),
+        Page("Convenience Store", "convenience", lazy_page("dashboard_pages.convenience_store", "main")),
+        Page("Advanced Filters", "advanced_filters", lazy_page("dashboard_pages.advanced_filters", "main")),
+        Page("Comprehensive Analytics", "comprehensive", lazy_page("dashboard_pages.comprehensive_analytics", "main")),
+    )
+
+
+def init_session_state() -> None:
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "home"
+    if "data_usage" not in st.session_state:
+        st.session_state.data_usage = []
+
+
+def record_data_usage(page: str, endpoint: str, records: int) -> None:
+    st.session_state.data_usage.append(
+        {
+            "page": page,
+            "endpoint": endpoint,
+            "records": records,
+            "timestamp": pd.Timestamp.utcnow(),
+        }
+    )
+
+
+def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
     st.sidebar.title("Sebenza Surveys Dashboard")
     st.sidebar.markdown("---")
-    
-    # Data usage monitoring
-    if 'data_usage' in st.session_state and st.session_state.data_usage:
-        with st.sidebar.expander("💰 Data Usage", expanded=False):
-            total_records = sum(usage['records'] for usage in st.session_state.data_usage)
-            st.metric("Total Records Loaded", f"{total_records:,}")
-            st.metric("Pages Visited", len(st.session_state.data_usage))
-            
-            # Show recent usage
-            for usage in st.session_state.data_usage[-3:]:  # Show last 3
-                st.write(f"📄 {usage['page']}: {usage['records']:,} records")
-    
-    st.sidebar.markdown("---")
 
-    
-    # Sidebar button styling is now handled by global_styles.py
-    
-    # Add navigation buttons with consistent styling
-    nav_buttons = [
-        ("🏠 Home", "home", "home"),
-        ("Demographics", "demographics", "demographics"),
-        ("Profile Surveys", "survey_questions", "survey_questions"),
-        ("Health Surveys", "health", "health"),
-        ("Brands Analysis", "brands", "brands"),
-        ("Profile Survey", "profile", "profile"),
-        ("Funeral Cover", "funeral", "funeral"),
-        ("Cellphone Survey", "cellphone", "cellphone"),
-        ("Convenience Store", "convenience", "convenience"),
-        ("Comprehensive Analytics", "comprehensive", "comprehensive")
-    ]
-    
-    for button_text, key, page in nav_buttons:
-        if st.sidebar.button(button_text, key=key, use_container_width=True):
-            st.session_state.current_page = page
-            st.rerun()
-    
-    # Add Sebenza logo below navigation buttons
-    st.sidebar.markdown("---")
+    page_lookup = {page.label: page for page in navigation}
+    selection = st.sidebar.radio(
+        "Navigate",
+        options=[page.label for page in navigation],
+        index=[page.page_id for page in navigation].index(active_page_id),
+    )
+    if page_lookup[selection].page_id != active_page_id:
+        st.session_state.current_page = page_lookup[selection].page_id
+        st.rerun()
 
-    # Display content based on current page
-    if st.session_state.current_page == 'home':
-        show_home_page()
-    elif st.session_state.current_page == 'demographics':
-        show_demographics_page()
-    elif st.session_state.current_page == 'survey_questions':
-        show_survey_questions_page()
-    elif st.session_state.current_page == 'health':
-        show_health_page()
-    elif st.session_state.current_page == 'brands':
-        show_brands_page()
-    elif st.session_state.current_page == 'funeral':
-        show_funeral_page()
-    elif st.session_state.current_page == 'cellphone':
-        show_cellphone_page()
-    elif st.session_state.current_page == 'convenience':
-        show_convenience_page()
-    elif st.session_state.current_page == 'comprehensive':
-        show_comprehensive_page() 
+    render_backend_status()
+    render_data_usage_sidebar()
 
-def show_demographics_page():
-    # Lazy import to prevent startup crashes
+
+def render_backend_status() -> None:
+    client = get_backend_client()
+    if not client:
+        st.sidebar.error("Backend connection unavailable")
+        return
+
     try:
-        from demographics import main as demographics_main
-        demographics_main()
-    except ImportError as e:
-        st.error(f"Demographics module not available: {e}")
-        st.info("This will be fixed in the next deployment")
+        health = client.get_health_check()
+    except Exception as exc:
+        st.sidebar.error(f"Health check failed: {exc}")
+        return
 
-def show_survey_questions_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.profile_surveys import main as profile_surveys_main
-        profile_surveys_main()
-    except ImportError as e:
-        st.error(f"Profile surveys module not available: {e}")
-        st.info("This will be fixed in the next deployment")
+    status = str(health.get("status", "unknown")).lower()
+    message = health.get("message") or health.get("detail") or ""
+    if status == "ok":
+        st.sidebar.success("Backend healthy")
+    else:
+        st.sidebar.warning(f"Backend degraded ({message or status})")
+        with st.sidebar.expander("View health payload", expanded=False):
+            st.json(health)
 
-def show_health_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.health import main as health_main
-        health_main()
-    except ImportError as e:
-        st.error(f"Health module not available: {e}")
-        st.info("This will be fixed in the next deployment")
+def render_data_usage_sidebar() -> None:
+    usage = st.session_state.get("data_usage", [])
+    if not usage:
+        return
 
-def show_brands_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.brands import main as brands_main
-        brands_main()
-    except ImportError as e:
-        st.error(f"Brands module not available: {e}")
-        st.info("This will be fixed in the next deployment")
-
-
-def show_funeral_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.funeral_cover import main as funeral_main
-        funeral_main()
-    except ImportError as e:
-        st.error(f"Funeral Cover module not available: {e}")
-        st.info("This will be fixed in the next deployment")
-
-def show_cellphone_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.cellphone_survey import main as cellphone_main
-        cellphone_main()
-    except ImportError as e:
-        st.error(f"Cellphone Survey module not available: {e}")
-        st.info("This will be fixed in the next deployment")
-
-def show_convenience_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.convenience_store import main as convenience_main
-        convenience_main()
-    except ImportError as e:
-        st.error(f"Convenience Store module not available: {e}")
-        st.info("This will be fixed in the next deployment")
-
-def show_comprehensive_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.comprehensive_analytics import main as comprehensive_main
-        comprehensive_main()
-    except ImportError as e:
-        st.error(f"Comprehensive Analytics module not available: {e}")
-        st.info("This will be fixed in the next deployment")
-
-def show_home_page():
-    st.title("📊 Dashboard Overview")
-    
-    st.markdown("---")
-    
-    # Apply card styles
-    apply_card_styles()
-    
-    # Survey Selection
-    st.markdown("### 📊 Survey Selection")
-    try:
-        from backend_client import get_backend_client
-        client = get_backend_client()
-        if client:
-            # Get available surveys
-            surveys_index = client.get_surveys_index()
-            if not surveys_index.empty and 'survey' in surveys_index.columns:
-                available_surveys = surveys_index['survey'].unique().tolist()
-            else:
-                # Fallback to known surveys
-                available_surveys = [
-                    "SB055_Profile_Survey1",
-                    "SB056_Cellphone_Survey", 
-                    "FI027_1Life_Funeral_Cover_Survey",
-                    "FI028_1Life_Funeral_Cover_Survey2"
-                ]
-            
-            selected_survey = st.selectbox(
-                "Select Survey:",
-                options=available_surveys,
-                index=0,
-                key="home_survey_selection"
+    total_records = sum(item["records"] for item in usage)
+    with st.sidebar.expander("Recent data usage", expanded=False):
+        st.metric("Rows loaded", f"{total_records:,}")
+        recent = usage[-5:]
+        for item in reversed(recent):
+            st.caption(
+                f"{item['timestamp']:%Y-%m-%d %H:%M UTC} â€” {item['page']} ({item['records']:,} rows via {item['endpoint']})"
             )
-        else:
-            raise Exception("No backend connection")
-    except:
-        # Fallback to default survey
-        selected_survey = "SB055_Profile_Survey1"
-        st.info("Using default survey: SB055_Profile_Survey1")
-    
-    # Try to get real metrics from backend, fallback to sample data
-    responses = None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _get_survey_options() -> list[str]:
+    client = get_backend_client()
+    if not client:
+        return []
+    index = client.get_surveys_index()
+    if not index.empty:
+        if "survey" in index.columns:
+            return sorted(index["survey"].dropna().unique().tolist())
+        if "title" in index.columns:
+            return sorted(index["title"].dropna().unique().tolist())
+    summary = client.get_survey_summary()
+    if isinstance(summary, dict):
+        return sorted(summary.get("surveys", []))
+    return []
+
+
+def show_home_page() -> None:
+    st.title("Sebenza Surveys Dashboard")
+    st.caption("Insightful, trusted intelligence for the South African commuter market.")
+    st.markdown("---")
+
+    apply_card_styles()
+
+    client = get_backend_client()
+    survey_options = _get_survey_options()
+    default_survey = survey_options[0] if survey_options else "SB055_Profile_Survey1"
+    selected_survey = st.selectbox(
+        "Select survey to analyse",
+        options=survey_options or [default_survey],
+        index=0,
+    )
+
+    metrics, responses = load_metrics_and_responses(client, selected_survey)
+    render_metrics(metrics)
+    render_feature_highlights()
+    render_response_trends(responses, selected_survey)
+    render_question_summary(responses)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_metrics_and_responses(client, survey: str) -> tuple[dict[str, str], pd.DataFrame]:
+    fallback = {
+        "total_responses": "0",
+        "unique_respondents": "0",
+        "last_updated": "Unknown",
+    }
+    if not client:
+        return fallback, pd.DataFrame()
+
+    summary = client.get_survey_summary()
+    if isinstance(summary, dict):
+        total = summary.get("total_responses")
+        unique = summary.get("unique_respondents")
+        updated = summary.get("last_refreshed") or summary.get("generated_at")
+    else:
+        total = unique = updated = None
+
+    responses = client.get_responses(survey=survey, limit=1000)
+    if not isinstance(responses, pd.DataFrame):
+        responses = pd.DataFrame()
+
+    if total is None and not responses.empty:
+        total = len(responses)
+    if unique is None and not responses.empty and "pid" in responses.columns:
+        unique = responses["pid"].nunique()
+    metrics = {
+        "total_responses": _format_number(total) if total is not None else "0",
+        "unique_respondents": _format_number(unique) if unique is not None else "0",
+        "last_updated": str(updated or pd.Timestamp.utcnow().strftime("%Y-%m-%d")),
+    }
+
     try:
-        from backend_client import get_backend_client
-        client = get_backend_client()
-        if client:
-            # Try to get survey index first (lightweight)
-            surveys_index = client.get_surveys_index()
-            if not surveys_index.empty:
-                # Get total responses from index
-                total_responses = len(surveys_index)
-                unique_users = surveys_index['pid'].nunique() if 'pid' in surveys_index.columns else total_responses
-                
-                metrics_data = [
-                    {"title": "Total Responses", "value": f"{total_responses:,}"},
-                    {"title": "Unique Users", "value": f"{unique_users:,}"},
-                ]
-            else:
-                # Fallback to responses endpoint with limit and required survey parameter
-                responses = client.get_responses(survey=selected_survey, limit=1000)
-                if not responses.empty:
-                    # Calculate real metrics
-                    total_responses = len(responses)
-                    unique_users = responses['pid'].nunique() if 'pid' in responses.columns else 0
-                    
-                    metrics_data = [
-                        {"title": "Total Responses", "value": f"{total_responses:,}"},
-                        {"title": "Unique Users", "value": f"{unique_users:,}"},
-                    ]
-                else:
-                    metrics_data = [
-                        {"title": "Total Responses", "value": "0"},
-                        {"title": "Unique Users", "value": "0"},
-                    ]
-        else:
-            raise Exception("No backend connection")
-    except:
-        # Fallback to sample metrics
-        metrics_data = [
-            {"title": "Total Responses", "value": "144k"},
-            {"title": "Unique Users", "value": "325k"},
-        ]
-    st.markdown("""
-    ## Welcome to the Sebenza Surveys Dashboard!
-    This dashboard provides comprehensive insights into the preferences and preceptions of South African Taxi Commuters.
-    """)
+        record_data_usage("Home", "/api/responses", len(responses) if not responses.empty else 0)
+    except Exception:
+        pass
 
-    # Add metrics cards
-    st.markdown("### Key Metrics")
-    col1, col2 = st.columns(2)
+    return metrics, responses
 
+
+def _format_number(value) -> str:
+    if value is None:
+        return "0"
+    if isinstance(value, (int, float)) and pd.notna(value):
+        return f"{int(value):,}"
+    return str(value)
+
+
+def render_metrics(metrics: dict[str, str]) -> None:
+    st.subheader("Key metrics")
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(create_metric_card(
-            "Total Responses", 
-            metrics_data[0]["value"],
-            "Survey responses collected"
-        ), unsafe_allow_html=True)
-
+        st.markdown(
+            create_metric_card(
+                "Total responses",
+                metrics["total_responses"],
+                "Rows available for analysis",
+            ),
+            unsafe_allow_html=True,
+        )
     with col2:
-        st.markdown(create_metric_card(
-            "Unique Users", 
-            metrics_data[1]["value"],
-            "Distinct participants"
-        ), unsafe_allow_html=True)
+        st.markdown(
+            create_metric_card(
+                "Unique respondents",
+                metrics["unique_respondents"],
+                "Distinct participant IDs",
+            ),
+            unsafe_allow_html=True,
+        )
+    with col3:
+        st.markdown(
+            create_metric_card(
+                "Last refreshed",
+                metrics["last_updated"],
+                "Source: Sebenza data services",
+            ),
+            unsafe_allow_html=True,
+        )
 
-    # Add dashboard features
-    st.markdown("### Features")
+
+def render_feature_highlights() -> None:
+    st.subheader("What you can explore")
     col1, col2 = st.columns(2)
-
     with col1:
-        st.markdown("""
-        #### Demographics Dashboard
-        - **Gender Distribution**
-        - **Age Group Analysis** 
-        - **Employment Status**
-        - **Location Analysis**
-        - **SEM Groups**
-        """)
-
+        st.markdown(
+            """
+            **Audience intelligence**
+            - Demographic depth across gender, age and province
+            - Household economics with SEM and income lenses
+            - Lifestyle indicators with commuter behaviour insights
+            """
+        )
     with col2:
-        st.markdown("""
-        #### Profile Surveys Dashboard
-        - **Shop Visitation Analysis**
-        - **Money Source Analysis**
-        - **Commuter Spending**
-
-        #### Health Surveys Dashboard
-        - **Health Status Analysis**
-        - **Exercise & Lifestyle**
-        - **Sleep Patterns**
-
-        #### Brands Analysis Dashboard
-        - **Brand Preference Analysis**
-        - **Shopping Behavior**
-        - **Customer Satisfaction**
-
-        #### Profile Survey Dashboard
-        - **Demographic Analysis**
-        - **Age & Gender Distribution**
-        - **Employment & Income**
-
-        #### Funeral Cover Dashboard
-        - **Coverage Analysis**
-        - **Provider Preferences**
-        - **Satisfaction Metrics**
-
-        #### Cellphone Survey Dashboard
-        - **Device Usage Analysis**
-        - **Network Provider Preferences**
-        - **Spending Patterns**
-
-        #### Convenience Store Dashboard
-        - **Shopping Behavior**
-        - **Product Preferences**
-        - **Store Satisfaction**
-
-        #### Comprehensive Analytics Dashboard
-        - **Advanced Filtering**
-        - **Cross-Survey Analysis**
-        - **System Health Monitoring**
-        - **Data Schema Documentation**
-
-        **Last Updated**: `15-Sept-2025`
-        """)
-
-    # Add date range filter and trend chart if data is available
-    try:
-        if responses is not None and hasattr(responses, 'empty') and not responses.empty and 'ts' in responses.columns:
-            # Date Range Filter
-            st.markdown("### 📅 Date Range Filter")
-            
-            # Convert ts column to datetime if it exists
-            responses['ts'] = pd.to_datetime(responses['ts'], errors='coerce')
-            valid_dates = responses['ts'].dropna()
-            
-            if not valid_dates.empty:
-                min_date = valid_dates.min().date()
-                max_date = valid_dates.max().date()
-                
-                # Create date slider
-                date_range = st.date_input(
-                    "Select date range:",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="home_date_range_filter"
-                )
-                
-                # Apply date filter to responses
-                if len(date_range) == 2:
-                    start_date, end_date = date_range
-                    # Convert to datetime for comparison
-                    start_datetime = pd.to_datetime(start_date)
-                    end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
-                    
-                    # Filter responses by date range
-                    filtered_responses = responses[
-                        (responses['ts'] >= start_datetime) & 
-                        (responses['ts'] < end_datetime)
-                    ]
-                    
-                    st.info(f"📊 Showing data from {start_date} to {end_date} ({len(filtered_responses):,} responses)")
-                    
-                    # Create trend chart with filtered data
-                    st.markdown("### Response Trends")
-                    dates = filtered_responses['ts'].dropna()
-                    if not dates.empty:
-                        # Create daily response counts
-                        daily_counts = dates.dt.date.value_counts().sort_index()
-                        trend_data = pd.DataFrame({
-                            'date': daily_counts.index.astype(str),
-                            'responses': daily_counts.values
-                        })
-                        
-                        # Create chart with proper data validation and standardized fonts
-                        if len(trend_data) > 0 and trend_data['responses'].sum() > 0:
-                            chart = create_chart(
-                                trend_data, 
-                                'line', 
-                                'date', 
-                                'responses', 
-                                'Daily Response Trends',
-                                width=800,
-                                height=300,
-                                font_size=14,
-                                title_font_size=16,
-                                axis_font_size=12
-                            )
-                            
-                            if chart is not None:
-                                # Check if it's a Plotly figure or Altair chart
-                                if hasattr(chart, 'update_layout'):  # Plotly figure
-                                    st.plotly_chart(chart, use_container_width=True)
-                                else:  # Altair chart
-                                    st.altair_chart(chart, use_container_width=True)
-                            else:
-                                st.info("Daily Response Counts (Chart library not available)")
-                                st.dataframe(trend_data, use_container_width=True)
-                        else:
-                            st.info("No data available for the selected date range")
-                            st.dataframe(trend_data, use_container_width=True)
-                    else:
-                        st.info("No valid date data available for trend analysis in selected range")
-                else:
-                    st.info("📊 Please select both start and end dates")
-            else:
-                st.warning("⚠️ No valid date data found in responses")
-        else:
-            st.info("No timestamp data available for trend analysis")
-    except Exception as e:
-        st.info("Unable to display response trends at this time")
-
-    # Add Survey Questions Analysis
-    try:
-        if responses is not None and hasattr(responses, 'empty') and not responses.empty and 'q' in responses.columns:
-            st.markdown("### Survey Questions Analysis")
-            
-            # Show unique questions count
-            unique_questions = responses['q'].dropna().unique()
-            st.markdown(f"**Total unique questions:** {len(unique_questions)}")
-            
-            # Show question distribution in a neat table
-            question_counts = responses['q'].value_counts()
-            st.markdown("**Top 10 most frequently asked questions:**")
-            
-            # Create a DataFrame for the table
-            top_questions = question_counts.head(10)
-            questions_data = []
-            for i, (question, count) in enumerate(top_questions.items(), 1):
-                questions_data.append({
-                    "Question": question,
-                    "Unique Responses": f"{count:,}"
-                })
-            
-            questions_df = pd.DataFrame(questions_data)
-            st.table(questions_df)
-            
-    except Exception as e:
-        st.info("Unable to display survey questions analysis at this time")
+        st.markdown(
+            """
+            **Engagement dashboards**
+            - Campaign-ready segments in Brands, Health and Profile views
+            - Funnel perspectives for Funeral Cover and Cellphone surveys
+            - Operations suite with data quality and schema documentation
+            """
+        )
 
 
+def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
+    if responses.empty or "ts" not in responses.columns:
+        st.info("Response trend data is not available for the selected survey yet.")
+        return
 
- 
+    st.subheader("Response trends")
+
+    responses = responses.copy()
+    responses["ts"] = pd.to_datetime(responses["ts"], errors="coerce")
+    responses = responses.dropna(subset=["ts"])
+    if responses.empty:
+        st.info("No timestamped data available after cleaning.")
+        return
+
+    min_date = responses["ts"].min().date()
+    max_date = responses["ts"].max().date()
+    start, end = st.date_input(
+        "Filter by date range",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key=f"range_{survey}",
+    )
+    mask = (responses["ts"].dt.date >= start) & (responses["ts"].dt.date <= end)
+    filtered = responses.loc[mask]
+
+    if filtered.empty:
+        st.warning("No responses fall within the selected range.")
+        return
+
+    daily_counts = (
+        filtered["ts"]
+        .dt.to_period("D")
+        .value_counts()
+        .sort_index()
+        .rename_axis("date")
+        .reset_index(name="responses")
+    )
+    daily_counts["date"] = daily_counts["date"].dt.to_timestamp()
+
+    chart = create_altair_chart(
+        daily_counts,
+        chart_type="line",
+        x_col="date",
+        y_col="responses",
+        title="Daily response volume",
+        width=780,
+        height=320,
+        font_size=14,
+        title_font_size=18,
+        axis_font_size=12,
+    )
+    if chart is not None:
+        st.altair_chart(chart, use_container_width=True)
+    else:
+        st.dataframe(daily_counts, use_container_width=True)
+
+
+def render_question_summary(responses: pd.DataFrame) -> None:
+    if responses.empty or "q" not in responses.columns:
+        return
+
+    st.subheader("Top survey questions")
+    question_counts = (
+        responses["q"].dropna().value_counts().head(10).reset_index().rename(columns={"index": "Question", "q": "Responses"})
+    )
+    if question_counts.empty:
+        return
+
+    st.dataframe(question_counts, use_container_width=True)
+
+
+def main() -> None:
+    init_session_state()
+    navigation = get_navigation()
+    render_sidebar(st.session_state.current_page, navigation)
+
+    active_page: Optional[Page] = next(
+        (page for page in navigation if page.page_id == st.session_state.current_page),
+        navigation[0],
+    )
+    active_page.render()
+
 
 if __name__ == "__main__":
     main()

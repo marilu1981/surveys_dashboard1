@@ -185,10 +185,13 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
             'size': axis_font_size,
             'color': '#F8F8FF'
         },
-        'titlefont': {
-            'family': 'Arial, sans-serif',
-            'size': axis_font_size,
-            'color': '#F8F8FF'
+        'title': {
+            'font': {
+                'family': 'Arial, sans-serif',
+                'size': axis_font_size,
+                'color': '#F8F8FF'
+            },
+            'text': ''
         },
         'gridcolor': '#2E3440',
         'linecolor': '#F8F8FF',

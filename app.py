@@ -193,7 +193,11 @@ def show_home_page() -> None:
     render_question_summary(responses)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(
+    ttl=300,
+    show_spinner=False,
+    hash_funcs={"backend_client.BackendClient": lambda client: (client.base_url, getattr(client, "api_key", "") or "")},
+)
 def load_metrics_and_responses(client, survey: str) -> tuple[dict[str, str], pd.DataFrame]:
     fallback = {
         "total_responses": "0",

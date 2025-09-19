@@ -56,15 +56,8 @@ def main():
             brands_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
             
             if not brands_data.empty:
-                # Debug: Show sample data
-                st.write("🔍 **Debug - Profile Survey Data Info:**")
-                st.write(f"Total responses: {len(brands_data)}")
-                st.write(f"Columns: {brands_data.columns.tolist()}")
-                st.write("Sample data:", brands_data.head(2))
-                
                 # Filter for brand-related questions
                 if 'q' in brands_data.columns:
-                    st.write("🔍 **Debug - Sample questions:**", brands_data['q'].head(10).tolist())
                     brand_questions = brands_data[
                         brands_data['q'].str.contains('brand|product|service|company|prefer', case=False, na=False)
                     ]

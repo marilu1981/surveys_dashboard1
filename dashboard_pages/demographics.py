@@ -30,11 +30,9 @@ def get_real_data():
         # Try to get pre-computed demographics data first
         demographics_data = client.get_demographics()
         
-        # Debug: Show what demographics endpoint returns
-        st.write("🔍 **Debug - Demographics endpoint response:**", demographics_data)
-        
         if demographics_data and "error" not in demographics_data:
-            # Use pre-computed demographics data
+            # Use pre-computed demographics data - this is the rich data structure
+            st.success("✅ Using pre-computed demographics data from backend")
             return demographics_data, None, None, None, None
         
         # Fallback to responses data if demographics endpoint not available
@@ -88,6 +86,116 @@ def get_real_data():
         return None, None, None, None, None
     
 
+def render_precomputed_demographics(demographics_data):
+    """Render demographics dashboard using pre-computed data"""
+    
+    # Overview metrics
+    overview = demographics_data.get("overview", {})
+    st.markdown("### 📊 Overview Metrics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Responses", f"{overview.get('total_responses', 0):,}")
+    
+    with col2:
+        st.metric("Total Surveys", f"{overview.get('total_surveys', 0):,}")
+    
+    with col3:
+        date_range = overview.get('date_range', {})
+        if date_range:
+            earliest = date_range.get('earliest', 'N/A')
+            latest = date_range.get('latest', 'N/A')
+            st.metric("Date Range", f"{earliest[:10]} to {latest[:10]}")
+        else:
+            st.metric("Date Range", "N/A")
+    
+    with col4:
+        st.metric("Daily Data Points", f"{overview.get('daily_data_points', 0):,}")
+    
+    # Overall demographics
+    overall_demographics = demographics_data.get("overall_demographics", {})
+    
+    if overall_demographics:
+        st.markdown("### 👥 Overall Demographics")
+        
+        # Gender distribution
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Gender Distribution")
+            gender_data = overall_demographics.get("gender", {})
+            if gender_data:
+                gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
+                fig = px.pie(gender_df, values='Count', names='Gender', title="Gender Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Age Group Distribution")
+            age_data = overall_demographics.get("age_groups", {})
+            if age_data:
+                age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
+                fig = px.bar(age_df, x='Age Group', y='Count', title="Age Group Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Employment and Salary
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Employment Status")
+            employment_data = overall_demographics.get("employment", {})
+            if employment_data:
+                emp_df = pd.DataFrame(list(employment_data.items()), columns=['Employment', 'Count'])
+                fig = px.bar(emp_df, x='Count', y='Employment', orientation='h', title="Employment Status")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Salary Bands")
+            salary_data = overall_demographics.get("salary_bands", {})
+            if salary_data:
+                salary_df = pd.DataFrame(list(salary_data.items()), columns=['Salary Band', 'Count'])
+                fig = px.bar(salary_df, x='Count', y='Salary Band', orientation='h', title="Salary Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Provinces
+        st.markdown("#### Provincial Distribution")
+        province_data = overall_demographics.get("provinces", {})
+        if province_data:
+            province_df = pd.DataFrame(list(province_data.items()), columns=['Province', 'Count'])
+            fig = px.bar(province_df, x='Province', y='Count', title="Provincial Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Time series data
+    time_series = demographics_data.get("time_series", {})
+    daily_responses = time_series.get("daily_responses", [])
+    
+    if daily_responses:
+        st.markdown("### 📈 Daily Response Trends")
+        
+        # Convert to DataFrame
+        daily_df = pd.DataFrame(daily_responses)
+        daily_df['date'] = pd.to_datetime(daily_df['date'])
+        
+        fig = px.line(daily_df, x='date', y='response_count', title="Daily Response Count")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Survey breakdown
+    by_survey = demographics_data.get("by_survey", {})
+    if by_survey:
+        st.markdown("### 📋 Survey Breakdown")
+        
+        survey_data = []
+        for survey_name, survey_info in by_survey.items():
+            survey_data.append({
+                'Survey': survey_name,
+                'Responses': survey_info.get('response_count', 0),
+                'Unique Profiles': survey_info.get('unique_profiles', 0),
+                'Date Range': f"{survey_info.get('date_range', {}).get('earliest', 'N/A')[:10]} to {survey_info.get('date_range', {}).get('latest', 'N/A')[:10]}"
+            })
+        
+        survey_df = pd.DataFrame(survey_data)
+        st.dataframe(survey_df, use_container_width=True)
+
 def main():
     st.title("📊 Demographics Dashboard")
     st.markdown("---")
@@ -97,6 +205,12 @@ def main():
     
     # Get data
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()
+    
+    # Check if we have pre-computed demographics data
+    if demographics_data and isinstance(demographics_data, dict) and "overview" in demographics_data:
+        # Use pre-computed demographics data
+        render_precomputed_demographics(demographics_data)
+        return
     
     if survey_ids and (responses is not None and not responses.empty):
         # Date Range Filter

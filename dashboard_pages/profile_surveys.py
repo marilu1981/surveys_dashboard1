@@ -1,5 +1,5 @@
 """
-Survey Questions Dashboard Page
+Profile Surveys Dashboard Page
 """
 import streamlit as st
 import pandas as pd
@@ -28,16 +28,9 @@ def get_real_data():
     
     try:
         # Get responses data from your backend using optimized endpoint
-        # Try to get Profile Survey data first (most comprehensive)
-        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=1000)
+        # Try to get Profile Survey data first (most comprehensive) - use individual survey endpoint for full data
+        responses = client.get_individual_survey("SB055_Profile_Survey1", full=True)
         
-        # Debug: Show data info
-        st.write("🔍 **Debug - Survey Questions Data Info:**")
-        st.write(f"Total responses: {len(responses)}")
-        st.write(f"Columns: {responses.columns.tolist()}")
-        if 'ts' in responses.columns:
-            st.write(f"Date range: {responses['ts'].min()} to {responses['ts'].max()}")
-        st.write("Sample data:", responses.head(2))
         
         if responses.empty:
             # Fallback to survey index if responses endpoint fails
@@ -70,7 +63,7 @@ def get_real_data():
         return None, None, None, None
 
 def main():
-    st.title("📋 Survey Questions Dashboard")
+    st.title("📊 Profile Surveys Dashboard")
     st.markdown("---")
     
     # Apply card styles

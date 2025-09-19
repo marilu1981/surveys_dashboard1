@@ -96,7 +96,7 @@ def main():
         st.session_state.current_page = 'demographics'
         st.rerun()
     
-    if st.sidebar.button("Survey Questions", key="survey_questions", width="stretch"):
+    if st.sidebar.button("Profile Surveys", key="survey_questions", width="stretch"):
         st.session_state.current_page = 'survey_questions'
         st.rerun()
     
@@ -143,8 +143,6 @@ def main():
         show_health_page()
     elif st.session_state.current_page == 'brands':
         show_brands_page()
-    elif st.session_state.current_page == 'profile':
-        show_profile_page()
     elif st.session_state.current_page == 'funeral':
         show_funeral_page()
     elif st.session_state.current_page == 'cellphone':
@@ -166,10 +164,10 @@ def show_demographics_page():
 def show_survey_questions_page():
     # Lazy import to prevent startup crashes
     try:
-        from survey_questions import main as survey_questions_main
-        survey_questions_main()
+        from dashboard_pages.profile_surveys import main as profile_surveys_main
+        profile_surveys_main()
     except ImportError as e:
-        st.error(f"Survey questions module not available: {e}")
+        st.error(f"Profile surveys module not available: {e}")
         st.info("This will be fixed in the next deployment")
 
 def show_health_page():
@@ -190,14 +188,6 @@ def show_brands_page():
         st.error(f"Brands module not available: {e}")
         st.info("This will be fixed in the next deployment")
 
-def show_profile_page():
-    # Lazy import to prevent startup crashes
-    try:
-        from dashboard_pages.profile_survey import main as profile_main
-        profile_main()
-    except ImportError as e:
-        st.error(f"Profile Survey module not available: {e}")
-        st.info("This will be fixed in the next deployment")
 
 def show_funeral_page():
     # Lazy import to prevent startup crashes
@@ -325,7 +315,7 @@ def show_home_page():
 
     with col2:
         st.markdown("""
-        #### Survey Questions Dashboard
+        #### Profile Surveys Dashboard
         - **Shop Visitation Analysis**
         - **Money Source Analysis**
         - **Commuter Spending**

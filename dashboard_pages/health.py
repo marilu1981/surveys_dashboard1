@@ -61,15 +61,15 @@ def create_sample_data():
     timestamps = pd.date_range('2024-01-01', periods=n_records, freq='h')
     
     return pd.DataFrame({
-        'profile_id': profile_ids,
-        'survey_title': survey_titles,
-        'survey_question': survey_questions,
-        'response': responses,
+        'pid': profile_ids,
+        'title': survey_titles,
+        'q': survey_questions,
+        'resp': responses,
         'gender': genders,
         'age_group': age_groups,
-        'monthly_salary': monthly_salaries,
-        'employment_status': employment_statuses,
-        'timestamp': timestamps
+        'salary': monthly_salaries,
+        'employment': employment_statuses,
+        'ts': timestamps
     })
 
 def main():
@@ -97,13 +97,13 @@ def main():
     @st.cache_data
     def calculate_metrics(data):
         profile_col = None
-        for col in ['PROFILE_ID', 'profile_id', 'pid', 'user_id', 'id']:
+        for col in ['pid', 'profile_id', 'PROFILE_ID', 'user_id', 'id']:
             if col in data.columns:
                 profile_col = col
                 break
         
         question_col = None
-        for col in ['SURVEY_QUESTION', 'survey_question', 'question', 'q', 'survey_questions']:
+        for col in ['q', 'question', 'SURVEY_QUESTION', 'survey_question', 'survey_questions']:
             if col in data.columns:
                 question_col = col
                 break

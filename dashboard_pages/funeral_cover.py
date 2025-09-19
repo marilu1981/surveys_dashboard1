@@ -116,6 +116,7 @@ def calculate_funeral_metrics(data):
             'date_range': 'No Data'
         }
     
+    
     # Flexible column detection
     profile_col = None
     question_col = None
@@ -123,18 +124,31 @@ def calculate_funeral_metrics(data):
     date_col = None
     survey_col = None
     
-    for col in data.columns:
-        col_lower = col.lower()
-        if 'profile' in col_lower and 'id' in col_lower:
-            profile_col = col
-        elif 'question' in col_lower:
-            question_col = col
-        elif 'response' in col_lower:
-            response_col = col
-        elif 'date' in col_lower or 'timestamp' in col_lower:
-            date_col = col
-        elif 'survey' in col_lower and ('group' in col_lower or 'id' in col_lower):
-            survey_col = col
+    # Use exact column names from API
+    if 'pid' in data.columns:
+        profile_col = 'pid'
+    elif 'profile_id' in data.columns:
+        profile_col = 'profile_id'
+    
+    if 'q' in data.columns:
+        question_col = 'q'
+    elif 'question' in data.columns:
+        question_col = 'question'
+    
+    if 'resp' in data.columns:
+        response_col = 'resp'
+    elif 'response' in data.columns:
+        response_col = 'response'
+    
+    if 'ts' in data.columns:
+        date_col = 'ts'
+    elif 'created_at' in data.columns:
+        date_col = 'created_at'
+    
+    if 'title' in data.columns:
+        survey_col = 'title'
+    elif 'survey_title' in data.columns:
+        survey_col = 'survey_title'
     
     total_responses = len(data)
     unique_profiles = data[profile_col].nunique() if profile_col else 0

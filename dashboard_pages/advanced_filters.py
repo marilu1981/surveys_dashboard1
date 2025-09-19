@@ -50,7 +50,7 @@ def render_advanced_filters() -> Dict[str, Any]:
             filters['survey'] = selected_survey
     
     # Gender filter
-    with st.sidebar.expander("👥 Gender", expanded=False):
+    with st.sidebar.expander("Gender", expanded=False):
         gender_options = ["All Genders"] + (vocab.get('gender_values', ['Male', 'Female', 'Other']))
         selected_gender = st.selectbox(
             "Select Gender",
@@ -61,7 +61,7 @@ def render_advanced_filters() -> Dict[str, Any]:
             filters['gender'] = selected_gender
     
     # Age Group filter
-    with st.sidebar.expander("🎂 Age Group", expanded=False):
+    with st.sidebar.expander("Age Group", expanded=False):
         age_options = ["All Ages"] + (vocab.get('age_group_values', ['18-24', '25-34', '35-44', '45-54', '55+']))
         selected_age = st.selectbox(
             "Select Age Group",
@@ -72,7 +72,7 @@ def render_advanced_filters() -> Dict[str, Any]:
             filters['age_group'] = selected_age
     
     # Employment filter
-    with st.sidebar.expander("💼 Employment", expanded=False):
+    with st.sidebar.expander("Employment", expanded=False):
         employment_options = ["All Employment"] + (vocab.get('employment_values', ['Employed', 'Unemployed', 'Student', 'Retired']))
         selected_employment = st.selectbox(
             "Select Employment Status",
@@ -83,15 +83,15 @@ def render_advanced_filters() -> Dict[str, Any]:
             filters['employment'] = selected_employment
     
     # Location filter
-    with st.sidebar.expander("📍 Location", expanded=False):
-        location_options = ["All Locations"] + (vocab.get('location_values', ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West']))
+    with st.sidebar.expander("Location", expanded=False):
+        location_options = ["All Locations"] + (vocab.get('home_province_values', ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'Northern Cape', 'North West']))
         selected_location = st.selectbox(
             "Select Location",
             options=location_options,
             key="filter_location"
         )
         if selected_location != "All Locations":
-            filters['location'] = selected_location
+            filters['home_province'] = selected_location
     
     # Date range filter
     with st.sidebar.expander("📅 Date Range", expanded=False):
@@ -140,19 +140,21 @@ def render_advanced_filters() -> Dict[str, Any]:
     
     return filters
 
-def get_filtered_data(filters: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_filtered_data(filters: Dict[str, Any]) -> Optional[pd.DataFrame]:
     """Get filtered data using the advanced filters"""
     client = get_backend_client()
     if not client:
         return None
     
     try:
-        data = client.get_filtered_responses(filters)
-        if "error" not in data:
-            return data
-        else:
-            st.error(f"Error fetching filtered data: {data['error']}")
+        # Ensure survey parameter is present
+        if 'survey' not in filters:
+            st.warning("⚠️ Survey parameter is required for filtered responses")
             return None
+            
+        # Use the get_responses method with filters
+        data = client.get_responses(survey=filters['survey'], **filters)
+        return data
     except Exception as e:
         st.error(f"Error fetching filtered data: {str(e)}")
         return None
@@ -160,7 +162,7 @@ def get_filtered_data(filters: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def render_filter_summary(filters: Dict[str, Any], data: Optional[Dict[str, Any]]):
     """Render a summary of applied filters and data"""
     if not filters:
-        st.info("📊 No filters applied - showing all data")
+        st.info("No filters applied - showing all data")
         return
     
     st.info(f"🔍 **Filters Applied:** {len(filters)} filter(s)")
@@ -175,7 +177,7 @@ def render_filter_summary(filters: Dict[str, Any], data: Optional[Dict[str, Any]
     # Show data summary
     if data and 'pagination' in data:
         pagination = data['pagination']
-        st.markdown(f"📈 **Results:** {len(data.get('data', []))} of {pagination.get('total', 0)} responses")
+        st.markdown(f"**Results:** {len(data.get('data', []))} of {pagination.get('total', 0)} responses")
         
         if pagination.get('has_more', False):
             st.warning("⚠️ Results are limited by the data limit filter. Increase the limit to see more data.")

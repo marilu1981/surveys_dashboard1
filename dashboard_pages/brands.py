@@ -56,17 +56,22 @@ def main():
             brands_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
             
             if not brands_data.empty:
-                # Filter for brand-related questions
-                brand_questions = brands_data[
-                    brands_data['q'].str.contains('brand|product|service|company|prefer', case=False, na=False)
-                ]
                 
-                if not brand_questions.empty:
-                    st.success(f"✅ Successfully loaded {len(brand_questions):,} brand-related responses!")
-                    st.info(f"Columns: {list(brand_questions.columns)}")
-                    brands_data = brand_questions
+                # Filter for brand-related questions
+                if 'q' in brands_data.columns:
+                    brand_questions = brands_data[
+                        brands_data['q'].str.contains('brand|product|service|company|prefer', case=False, na=False)
+                    ]
+                    
+                    if not brand_questions.empty:
+                        st.success(f"✅ Successfully loaded {len(brand_questions):,} brand-related responses!")
+                        st.info(f"Columns: {list(brand_questions.columns)}")
+                        brands_data = brand_questions
+                    else:
+                        st.warning("No brand-related questions found in Profile Survey data")
+                        st.info("Available questions:", brands_data['q'].unique()[:10])
                 else:
-                    st.warning("No brand-related questions found in Profile Survey data")
+                    st.warning("No 'q' column found in Profile Survey data")
                     st.info("Using all Profile Survey data for analysis")
                     st.success(f"✅ Loaded {len(brands_data):,} total responses from Profile Survey")
             else:

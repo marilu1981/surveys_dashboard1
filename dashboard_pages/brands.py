@@ -17,12 +17,12 @@ def main():
     apply_card_styles()
     
     # Get backend client
-    try:
-        from backend_client import get_backend_client
+        try:
+            from backend_client import get_backend_client
         # Clear cache to ensure we get the latest backend client with new methods
         if hasattr(st, 'cache_resource'):
             st.cache_resource.clear()
-        client = get_backend_client()
+            client = get_backend_client()
         
         if not client:
             st.error("❌ Backend connection failed")
@@ -33,7 +33,7 @@ def main():
         # Load legacy survey data
         if hasattr(client, 'get_legacy_survey_data'):
             legacy_data = client.get_legacy_survey_data(limit=1000)  # Reduced for cost efficiency
-        else:
+            else:
             st.error("❌ Legacy survey data method not available. Please restart the app to load the latest backend client.")
             st.info("The backend client needs to be refreshed to include the new legacy survey data method.")
             
@@ -69,32 +69,32 @@ def main():
         st.markdown("### 🔍 Filters")
         
         col1, col2, col3 = st.columns(3)
-        
-        with col1:
+    
+    with col1:
             # Gender filter
             if 'gender' in legacy_data.columns:
                 genders = ['All'] + list(legacy_data['gender'].unique())
                 selected_gender = st.selectbox("Gender", genders, index=0)
             else:
                 selected_gender = 'All'
-        
-        with col2:
+    
+    with col2:
             # Age group filter
             if 'age_group' in legacy_data.columns:
                 age_groups = ['All'] + list(legacy_data['age_group'].unique())
                 selected_age = st.selectbox("Age Group", age_groups, index=0)
             else:
                 selected_age = 'All'
-        
-        with col3:
+    
+    with col3:
             # Employment status filter
             if 'employment_status' in legacy_data.columns:
                 employment_options = ['All'] + [str(x) for x in legacy_data['employment_status'].unique() if pd.notna(x)]
                 selected_employment = st.selectbox("Employment Status", employment_options, index=0)
             else:
                 selected_employment = 'All'
-        
-        # Apply filters
+    
+    # Apply filters
         filtered_data = legacy_data.copy()
         
         if selected_gender != 'All':
@@ -116,66 +116,66 @@ def main():
             st.markdown("### 📋 Survey Questions Analysis")
             
             if 'survey_question' in filtered_data.columns:
-                # Question selection
+    # Question selection
                 questions = filtered_data['survey_question'].unique()
-                selected_question = st.selectbox("Select a question to analyze:", questions)
-                
-                if selected_question:
+            selected_question = st.selectbox("Select a question to analyze:", questions)
+            
+            if selected_question:
                     question_data = filtered_data[filtered_data['survey_question'] == selected_question]
-                    
-                    if not question_data.empty:
+                
+                if not question_data.empty:
                         # Response analysis
-                        col1, col2 = st.columns([2, 1])
-                        
-                        with col1:
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
                             st.markdown("#### Response Distribution")
                             
                             if 'response' in question_data.columns:
                                 response_counts = question_data['response'].value_counts()
-                                
-                                # Create response distribution table
-                                dist_data = []
-                                total_responses = len(question_data)
-                                for response, count in response_counts.items():
-                                    percentage = (count / total_responses) * 100
-                                    dist_data.append({
-                                        'Response': response,
-                                        'Count': f"{count:,}",
-                                        'Percentage': f"{percentage:.1f}%"
-                                    })
-                                
-                                dist_df = pd.DataFrame(dist_data)
-                                st.dataframe(dist_df, width='stretch')
-                                
-                                # Download button
-                                csv_data = dist_df.to_csv(index=False)
-                                st.download_button(
-                                    "Download Response Distribution (CSV)",
-                                    csv_data,
-                                    f"legacy_response_distribution_{selected_question.replace(' ', '_')[:50]}.csv",
-                                    "text/csv"
-                                )
                         
-                        with col2:
+                        # Create response distribution table
+                        dist_data = []
+                        total_responses = len(question_data)
+                        for response, count in response_counts.items():
+                            percentage = (count / total_responses) * 100
+                            dist_data.append({
+                                'Response': response,
+                                'Count': f"{count:,}",
+                                'Percentage': f"{percentage:.1f}%"
+                            })
+                        
+                        dist_df = pd.DataFrame(dist_data)
+                                st.dataframe(dist_df, width='stretch')
+                        
+                        # Download button
+                        csv_data = dist_df.to_csv(index=False)
+                        st.download_button(
+                            "Download Response Distribution (CSV)",
+                            csv_data,
+                                    f"legacy_response_distribution_{selected_question.replace(' ', '_')[:50]}.csv",
+                            "text/csv"
+                        )
+                    
+                    with col2:
                             st.markdown("#### Visualization")
-                            
+                        
                             if 'response' in question_data.columns and len(response_counts) > 0:
-                                # Create pie chart
-                                fig = px.pie(
-                                    values=response_counts.values,
-                                    names=response_counts.index,
-                                    title=f"Response Distribution",
-                                    color_discrete_sequence=px.colors.qualitative.Set3
-                                )
-                                fig.update_traces(textposition='inside', textinfo='percent+label')
+                        # Create pie chart
+                        fig = px.pie(
+                            values=response_counts.values,
+                            names=response_counts.index,
+                            title=f"Response Distribution",
+                            color_discrete_sequence=px.colors.qualitative.Set3
+                        )
+                        fig.update_traces(textposition='inside', textinfo='percent+label')
                                 st.plotly_chart(fig, width='stretch')
-            
+                    
             # Demographics Analysis
             st.markdown("### 👥 Demographics Analysis")
-            
+                    
             col1, col2 = st.columns(2)
-            
-            with col1:
+                    
+                    with col1:
                 # Gender distribution
                 if 'gender' in filtered_data.columns:
                     gender_counts = filtered_data['gender'].value_counts()
@@ -186,8 +186,8 @@ def main():
                         color_discrete_sequence=px.colors.qualitative.Pastel
                     )
                     st.plotly_chart(fig_gender, width='stretch')
-            
-            with col2:
+                    
+                    with col2:
                 # Age group distribution
                 if 'age_group' in filtered_data.columns:
                     age_counts = filtered_data['age_group'].value_counts()
@@ -234,11 +234,11 @@ def main():
             st.markdown("### 📈 Summary Metrics")
             
             col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
+                
+                with col1:
                 st.metric("Total Responses", f"{len(filtered_data):,}")
-            
-            with col2:
+                
+                with col2:
                 unique_surveys = filtered_data['survey_title'].nunique() if 'survey_title' in filtered_data.columns else 0
                 st.metric("Unique Surveys", f"{unique_surveys:,}")
             

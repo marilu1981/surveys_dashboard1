@@ -16,6 +16,7 @@ CACHE_HASH_FUNCS = {
     "requests.sessions.Session": lambda _: None,
 }
 
+DEFAULT_BACKEND_BASE_URL = "https://ansebmrsurveysv1.oa.r.appspot.com"
 
 class BackendClient:
     """Thin HTTP client with Streamlit-aware helpers."""
@@ -211,16 +212,29 @@ class BackendConfig:
 
 
 def _load_backend_config() -> Optional[BackendConfig]:
-    base_url = None
-    api_key = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
 
-    if hasattr(st, "secrets") and "backend" in st.secrets:
-        secrets_config = st.secrets["backend"]
-        base_url = secrets_config.get("base_url")
-        api_key = secrets_config.get("api_key")
+    if hasattr(st, "secrets"):
+        backend_section = None
+        if "backend" in st.secrets:
+            backend_section = st.secrets["backend"]
+        elif "connections" in st.secrets and isinstance(st.secrets["connections"], dict):
+            backend_section = st.secrets["connections"].get("sebenza_backend")
 
-    base_url = os.getenv("SEBENZA_BACKEND_BASE_URL", base_url)
-    api_key = os.getenv("SEBENZA_BACKEND_API_KEY", api_key)
+        if isinstance(backend_section, dict):
+            base_url = backend_section.get("base_url") or base_url
+            api_key = backend_section.get("api_key") or api_key
+
+    env_base = os.getenv("SEBENZA_BACKEND_BASE_URL")
+    env_key = os.getenv("SEBENZA_BACKEND_API_KEY")
+    if env_base:
+        base_url = env_base
+    if env_key:
+        api_key = env_key
+
+    base_url = (base_url or DEFAULT_BACKEND_BASE_URL or "").strip()
+    api_key = (api_key or "").strip() or None
 
     if not base_url:
         return None

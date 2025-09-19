@@ -89,107 +89,136 @@ def get_real_data():
 def render_precomputed_demographics(demographics_data):
     """Render demographics dashboard using pre-computed data"""
     
-    # Overview metrics
-    overview = demographics_data.get("overview", {})
-    st.markdown("### 📊 Overview Metrics")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Responses", f"{overview.get('total_responses', 0):,}")
-    
-    with col2:
-        st.metric("Total Surveys", f"{overview.get('total_surveys', 0):,}")
-    
-    with col3:
-        date_range = overview.get('date_range', {})
-        if date_range:
-            earliest = date_range.get('earliest', 'N/A')
-            latest = date_range.get('latest', 'N/A')
-            st.metric("Date Range", f"{earliest[:10]} to {latest[:10]}")
-        else:
-            st.metric("Date Range", "N/A")
-    
-    with col4:
-        st.markdown("")  # Empty column for spacing
-    
-    # Overall demographics
+    # Side Hustles Analysis
     overall_demographics = demographics_data.get("overall_demographics", {})
+    side_hustles = overall_demographics.get("side_hustles", {})
     
-    if overall_demographics:
-        st.markdown("### 👥 Overall Demographics")
+    if side_hustles:
+        st.markdown("### 💼 Side Hustles Analysis")
         
-        # Gender distribution
-        col1, col2 = st.columns(2)
+        side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
+        fig = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles Distribution")
+        fig.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig, width='stretch')
+    
+    # Cross-tabulations
+    cross_tabulations = demographics_data.get("cross_tabulations", {})
+    
+    if cross_tabulations:
+        st.markdown("### 📊 Cross-Tabulations")
         
-        with col1:
-            st.markdown("#### Gender Distribution")
-            gender_data = overall_demographics.get("gender", {})
-            if gender_data:
-                gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
-                fig = px.pie(gender_df, values='Count', names='Gender', title="Gender Distribution")
+        # Gender by Age
+        gender_by_age = cross_tabulations.get("gender_by_age", {})
+        if gender_by_age:
+            st.markdown("#### Gender by Age Group")
+            gender_age_data = []
+            for age_group, genders in gender_by_age.items():
+                for gender, count in genders.items():
+                    gender_age_data.append({
+                        'Age Group': age_group,
+                        'Gender': gender,
+                        'Count': count
+                    })
+            
+            if gender_age_data:
+                gender_age_df = pd.DataFrame(gender_age_data)
+                fig = px.bar(gender_age_df, x='Age Group', y='Count', color='Gender', 
+                           title="Gender Distribution by Age Group", barmode='group')
                 st.plotly_chart(fig, width='stretch')
         
-        with col2:
-            st.markdown("#### Age Group Distribution")
-            age_data = overall_demographics.get("age_groups", {})
-            if age_data:
-                age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
-                fig = px.bar(age_df, x='Age Group', y='Count', title="Age Group Distribution")
+        # Employment by Gender
+        employment_by_gender = cross_tabulations.get("employment_by_gender", {})
+        if employment_by_gender:
+            st.markdown("#### Employment Status by Gender")
+            emp_gender_data = []
+            for gender, employments in employment_by_gender.items():
+                for employment, count in employments.items():
+                    emp_gender_data.append({
+                        'Gender': gender,
+                        'Employment': employment,
+                        'Count': count
+                    })
+            
+            if emp_gender_data:
+                emp_gender_df = pd.DataFrame(emp_gender_data)
+                fig = px.bar(emp_gender_df, x='Employment', y='Count', color='Gender',
+                           title="Employment Status by Gender", barmode='group')
+                fig.update_layout(xaxis_tickangle=-45)
                 st.plotly_chart(fig, width='stretch')
         
-        # Employment and Salary
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### Employment Status")
-            employment_data = overall_demographics.get("employment", {})
-            if employment_data:
-                emp_df = pd.DataFrame(list(employment_data.items()), columns=['Employment', 'Count'])
-                fig = px.bar(emp_df, x='Count', y='Employment', orientation='h', title="Employment Status")
+        # Salary by Age
+        salary_by_age = cross_tabulations.get("salary_by_age", {})
+        if salary_by_age:
+            st.markdown("#### Salary Distribution by Age Group")
+            salary_age_data = []
+            for age_group, salaries in salary_by_age.items():
+                for salary, count in salaries.items():
+                    salary_age_data.append({
+                        'Age Group': age_group,
+                        'Salary Band': salary,
+                        'Count': count
+                    })
+            
+            if salary_age_data:
+                salary_age_df = pd.DataFrame(salary_age_data)
+                fig = px.bar(salary_age_df, x='Age Group', y='Count', color='Salary Band',
+                           title="Salary Distribution by Age Group", barmode='group')
+                fig.update_layout(xaxis_tickangle=-45)
                 st.plotly_chart(fig, width='stretch')
+    
+    # Question Analysis - Response Distributions
+    question_analysis = demographics_data.get("question_analysis", {})
+    response_distributions = question_analysis.get("response_distributions", {})
+    
+    if response_distributions:
+        st.markdown("### ❓ Question Analysis - Response Distributions")
         
-        with col2:
-            st.markdown("#### Salary Bands")
-            salary_data = overall_demographics.get("salary_bands", {})
-            if salary_data:
-                salary_df = pd.DataFrame(list(salary_data.items()), columns=['Salary Band', 'Count'])
-                fig = px.bar(salary_df, x='Count', y='Salary Band', orientation='h', title="Salary Distribution")
-                st.plotly_chart(fig, width='stretch')
+        # "Which of these describes you?" question
+        describes_question = response_distributions.get("Which of these describes you?", {})
+        if describes_question:
+            st.markdown("#### Which of these describes you?")
+            describes_data = pd.DataFrame(list(describes_question.items()), columns=['Response', 'Count'])
+            fig = px.pie(describes_data, values='Count', names='Response', 
+                        title="Which of these describes you?")
+            st.plotly_chart(fig, width='stretch')
         
-        # Provinces
-        st.markdown("#### Provincial Distribution")
-        province_data = overall_demographics.get("provinces", {})
-        if province_data:
-            province_df = pd.DataFrame(list(province_data.items()), columns=['Province', 'Count'])
-            fig = px.bar(province_df, x='Province', y='Count', title="Provincial Distribution")
+        # "What is your main source of money?" question
+        money_source_question = response_distributions.get("What is your main source of money?", {})
+        if money_source_question:
+            st.markdown("#### What is your main source of money?")
+            money_source_data = pd.DataFrame(list(money_source_question.items()), columns=['Response', 'Count'])
+            fig = px.pie(money_source_data, values='Count', names='Response',
+                        title="What is your main source of money?")
             st.plotly_chart(fig, width='stretch')
     
-    # SEM Analysis
+    # SEM Score Analysis
     sem_analysis = demographics_data.get("sem_analysis", {})
     if sem_analysis and "by_segment" in sem_analysis:
-        st.markdown("### 📊 SEM Segment Breakdown")
+        st.markdown("### 📊 SEM Score Analysis")
         
         by_segment = sem_analysis["by_segment"]
-        if "count" in by_segment:
-            sem_data = []
-            for segment, count in by_segment["count"].items():
-                sem_data.append({
+        if "mean" in by_segment:
+            st.markdown("#### Mean SEM Score per SEM Group")
+            sem_mean_data = []
+            for segment, mean_score in by_segment["mean"].items():
+                sem_mean_data.append({
                     'SEM Segment': segment,
-                    'Count': count
+                    'Mean Score': mean_score
                 })
             
-            sem_df = pd.DataFrame(sem_data)
+            sem_mean_df = pd.DataFrame(sem_mean_data)
             # Sort by segment number for better visualization
-            sem_df['Segment_Num'] = sem_df['SEM Segment'].str.extract('(\d+)').astype(int)
-            sem_df = sem_df.sort_values('Segment_Num')
+            sem_mean_df['Segment_Num'] = sem_mean_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
+            sem_mean_df = sem_mean_df.sort_values('Segment_Num')
             
-            fig = px.bar(sem_df, x='SEM Segment', y='Count', title="SEM Segment Distribution")
+            fig = px.bar(sem_mean_df, x='SEM Segment', y='Mean Score', 
+                        title="Mean SEM Score per SEM Group")
             fig.update_layout(
                 xaxis_title="SEM Segment",
-                yaxis_title="Count"
+                yaxis_title="Mean SEM Score"
             )
             st.plotly_chart(fig, width='stretch')
+    
     
 
 def main():

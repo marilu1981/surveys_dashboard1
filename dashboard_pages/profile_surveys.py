@@ -4,13 +4,14 @@ Profile Surveys Dashboard Page
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from backend_client import get_backend_client
-from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 import sys
 import os
 
 # Add the parent directory to the path to import our modules
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from backend_client import get_backend_client
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 from chart_utils import create_altair_chart
 
 # Add the styles directory to the path

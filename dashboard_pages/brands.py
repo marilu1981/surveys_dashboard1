@@ -53,13 +53,19 @@ def main():
         if client:
             st.info("Loading brand-related data from Profile Survey...")
             # Use the Profile Survey data which contains brand-related questions
-            brands_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
+            # Use a reasonable limit since full export is too large (122K+ responses)
+            brands_data = client.get_individual_survey("SB055_Profile_Survey1", limit=5000)
+            
+            st.info(f"Data loaded: {len(brands_data) if not brands_data.empty else 0} records")
+            if not brands_data.empty:
+                st.info(f"Columns available: {list(brands_data.columns)}")
             
             if not brands_data.empty:
                 # Filter for brand-related questions
                 if 'q' in brands_data.columns:
+                    # Look for questions related to shops, brands, products, services, preferences
                     brand_questions = brands_data[
-                        brands_data['q'].str.contains('brand|product|service|company|prefer', case=False, na=False)
+                        brands_data['q'].str.contains('shop|brand|product|service|company|prefer|visit|buy|purchase|store|retail', case=False, na=False)
                     ]
                     
                     if not brand_questions.empty:
@@ -68,7 +74,11 @@ def main():
                         brands_data = brand_questions
                     else:
                         st.warning("No brand-related questions found in Profile Survey data")
-                        st.info("Available questions:", brands_data['q'].unique()[:10])
+                        st.info("Available questions:")
+                        unique_questions = brands_data['q'].unique()
+                        for i, q in enumerate(unique_questions[:10]):
+                            st.write(f"{i+1}. {q}")
+                        
                         # Use all data for analysis
                         st.info("Using all Profile Survey data for analysis")
                         st.success(f"✅ Loaded {len(brands_data):,} total responses from Profile Survey")

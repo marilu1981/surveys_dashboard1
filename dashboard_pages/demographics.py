@@ -111,7 +111,7 @@ def render_precomputed_demographics(demographics_data):
             st.metric("Date Range", "N/A")
     
     with col4:
-        st.metric("Daily Data Points", f"{overview.get('daily_data_points', 0):,}")
+        st.markdown("")  # Empty column for spacing
     
     # Overall demographics
     overall_demographics = demographics_data.get("overall_demographics", {})
@@ -165,36 +165,32 @@ def render_precomputed_demographics(demographics_data):
             fig = px.bar(province_df, x='Province', y='Count', title="Provincial Distribution")
             st.plotly_chart(fig, width='stretch')
     
-    # Time series data
-    time_series = demographics_data.get("time_series", {})
-    daily_responses = time_series.get("daily_responses", [])
+    # SEM Analysis
+    sem_analysis = demographics_data.get("sem_analysis", {})
+    if sem_analysis and "by_segment" in sem_analysis:
+        st.markdown("### 📊 SEM Segment Breakdown")
+        
+        by_segment = sem_analysis["by_segment"]
+        if "count" in by_segment:
+            sem_data = []
+            for segment, count in by_segment["count"].items():
+                sem_data.append({
+                    'SEM Segment': segment,
+                    'Count': count
+                })
+            
+            sem_df = pd.DataFrame(sem_data)
+            # Sort by segment number for better visualization
+            sem_df['Segment_Num'] = sem_df['SEM Segment'].str.extract('(\d+)').astype(int)
+            sem_df = sem_df.sort_values('Segment_Num')
+            
+            fig = px.bar(sem_df, x='SEM Segment', y='Count', title="SEM Segment Distribution")
+            fig.update_layout(
+                xaxis_title="SEM Segment",
+                yaxis_title="Count"
+            )
+            st.plotly_chart(fig, width='stretch')
     
-    if daily_responses:
-        st.markdown("### 📈 Daily Response Trends")
-        
-        # Convert to DataFrame
-        daily_df = pd.DataFrame(daily_responses)
-        daily_df['date'] = pd.to_datetime(daily_df['date'])
-        
-        fig = px.line(daily_df, x='date', y='response_count', title="Daily Response Count")
-        st.plotly_chart(fig, width='stretch')
-    
-    # Survey breakdown
-    by_survey = demographics_data.get("by_survey", {})
-    if by_survey:
-        st.markdown("### 📋 Survey Breakdown")
-        
-        survey_data = []
-        for survey_name, survey_info in by_survey.items():
-            survey_data.append({
-                'Survey': survey_name,
-                'Responses': survey_info.get('response_count', 0),
-                'Unique Profiles': survey_info.get('unique_profiles', 0),
-                'Date Range': f"{survey_info.get('date_range', {}).get('earliest', 'N/A')[:10]} to {survey_info.get('date_range', {}).get('latest', 'N/A')[:10]}"
-            })
-        
-        survey_df = pd.DataFrame(survey_data)
-        st.dataframe(survey_df, width='stretch')
 
 def main():
     st.title("📊 Demographics Dashboard")
@@ -202,6 +198,18 @@ def main():
     
     # Apply card styles
     apply_card_styles()
+    
+    # Custom CSS for smaller date range text
+    st.markdown("""
+    <style>
+    .stMetric > div > div > div {
+        font-size: 0.8rem !important;
+    }
+    .stMetric > div > div > div[data-testid="metric-value"] {
+        font-size: 0.9rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Get data
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()

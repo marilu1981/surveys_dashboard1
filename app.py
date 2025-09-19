@@ -155,7 +155,18 @@ def _get_survey_options() -> list[str]:
             return sorted(index["title"].dropna().unique().tolist())
     summary = client.get_survey_summary()
     if isinstance(summary, dict):
-        return sorted(summary.get("surveys", []))
+        surveys = summary.get("surveys", [])
+        if isinstance(surveys, list):
+            extracted: set[str] = set()
+            for item in surveys:
+                if isinstance(item, str):
+                    extracted.add(item)
+                elif isinstance(item, dict):
+                    title = item.get("survey_title") or item.get("title")
+                    if title:
+                        extracted.add(str(title))
+            if extracted:
+                return sorted(extracted)
     return []
 
 

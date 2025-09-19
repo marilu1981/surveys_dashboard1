@@ -242,16 +242,20 @@ def _load_backend_config() -> Optional[BackendConfig]:
 
 
 @st.cache_resource(show_spinner=False)
+def _get_backend_client_cached(base_url: str, api_key: Optional[str]) -> BackendClient:
+    client = BackendClient(base_url, api_key)
+    if not client.test_connection():
+        st.warning("Backend reachable but health check is not OK.")
+    return client
+
+
 def get_backend_client() -> Optional[BackendClient]:
     config = _load_backend_config()
     if not config:
         st.error("Backend configuration is missing. Set SEBENZA_BACKEND_BASE_URL or update secrets.")
         return None
     try:
-        client = BackendClient(config.base_url, config.api_key)
-        if not client.test_connection():
-            st.warning("Backend reachable but health check is not OK.")
-        return client
+        return _get_backend_client_cached(config.base_url, config.api_key)
     except Exception as exc:  # noqa: BLE001
         st.error(f"Unable to initialise backend client: {exc}")
         return None

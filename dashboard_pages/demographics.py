@@ -102,14 +102,6 @@ def render_precomputed_demographics(demographics_data):
     col1, col2 = st.columns(2)
     
     with col1:
-        # Gender Pie Chart
-        gender_data = overall_demographics.get("gender", {})
-        if gender_data:
-            gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
-            fig_gender = px.pie(gender_df, values='Count', names='Gender', title="Gender")
-            st.plotly_chart(fig_gender, width='stretch')
-    
-    with col2:
         # Age Bar Chart
         age_data = overall_demographics.get("age_group", {})
         if age_data:
@@ -117,6 +109,14 @@ def render_precomputed_demographics(demographics_data):
             fig_age = px.bar(age_df, x='Age Group', y='Count', title="Age")
             fig_age.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_age, width='stretch')
+    
+    with col2:
+        # Gender Pie Chart
+        gender_data = overall_demographics.get("gender", {})
+        if gender_data:
+            gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
+            fig_gender = px.pie(gender_df, values='Count', names='Gender', title="Gender")
+            st.plotly_chart(fig_gender, width='stretch')
     
     # Row 2: Employment and Salary Bands
     col3, col4 = st.columns(2)

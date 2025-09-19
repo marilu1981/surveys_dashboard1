@@ -97,17 +97,10 @@ def render_precomputed_demographics(demographics_data):
     
     # Individual Demographics Charts
     st.markdown("### 📊 Commuter Demographics")
-    
-    # Debug: Show available data keys
-    with st.expander("🔍 Debug: Available Data Keys", expanded=False):
-        st.write("**Overall Demographics Keys:**", list(overall_demographics.keys()))
-        if "age_groups" in overall_demographics:
-            st.write("**Age Groups Data:**", overall_demographics["age_groups"])
-        if "age_group" in overall_demographics:
-            st.write("**Age Group Data:**", overall_demographics["age_group"])
+    st.markdown("")  # Add some spacing
     
     # Row 1: Gender and Age
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1, 1], gap="medium")
     
     with col1:
         # Gender Pie Chart
@@ -118,8 +111,12 @@ def render_precomputed_demographics(demographics_data):
                                color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1'])
             fig_gender.update_layout(
                 font_size=14,
-                title_font_size=16
+                title_font_size=16,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
+            fig_gender.update_traces(textfont=dict(size=14, color='white', family='Arial Black'))
             st.plotly_chart(fig_gender, width='stretch')
     
     with col2:
@@ -135,12 +132,15 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_age, width='stretch')
     
-    # Row 2: Employment and Salary Bands
-    col3, col4 = st.columns(2)
+    # Row 2: Employment and Commuter Type
+    col3, col4 = st.columns([1, 1], gap="medium")
     
     with col3:
         # Employment Bar Chart
@@ -155,11 +155,40 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_employment, width='stretch')
     
     with col4:
+        # Commuter Type Pie Chart
+        question_analysis = demographics_data.get("question_analysis", {})
+        response_distributions = question_analysis.get("response_distributions", {})
+        
+        if response_distributions:
+            # "Which of these describes you?" question
+            describes_question = response_distributions.get("Which of these describes you?", {})
+            if describes_question:
+                describes_data = pd.DataFrame(list(describes_question.items()), columns=['Response', 'Count'])
+                fig = px.pie(describes_data, values='Count', names='Response', 
+                            title="Commuter Type",
+                            color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
+                fig.update_layout(
+                    font_size=14,
+                    title_font_size=16,
+                    xaxis_title=None,
+                    yaxis_title=None,
+                    xaxis=dict(tickfont=dict(size=14))
+                )
+                fig.update_traces(textfont=dict(size=14, color='white', family='Arial Black'))
+                st.plotly_chart(fig, width='stretch')
+    
+    # Row 3: Salary Bands and Region
+    col5, col6 = st.columns([1, 1], gap="medium")
+    
+    with col5:
         # Salary Bands Bar Chart
         salary_data = overall_demographics.get("salary", {})
         if salary_data:
@@ -172,14 +201,14 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_salary, width='stretch')
     
-    # Row 3: Region and SEM
-    col5, col6 = st.columns(2)
-    
-    with col5:
+    with col6:
         # Region Bar Chart
         region_data = overall_demographics.get("region", {})
         if region_data:
@@ -192,32 +221,43 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_region, width='stretch')
     
-    with col6:
-        # SEM Bar Chart
+    # Row 4: SEM and Main Source of Income
+    col7, col8 = st.columns([1, 1], gap="medium")
+    
+    with col7:
+        # SEM Bar Chart - Percentage of Total
         sem_data = overall_demographics.get("sem", {})
         if sem_data:
             sem_df = pd.DataFrame(list(sem_data.items()), columns=['SEM', 'Count'])
             total_sem = sem_df['Count'].sum()
             sem_df['Percentage'] = (sem_df['Count'] / total_sem * 100).round(1)
-            fig_sem = px.bar(sem_df, x='SEM', y='Percentage', title="SEM",
+            
+            # Sort by SEM number for better visualization
+            sem_df['SEM_Num'] = sem_df['SEM'].str.extract(r'(\d+)').astype(int)
+            sem_df = sem_df.sort_values('SEM_Num')
+            
+            fig_sem = px.bar(sem_df, x='SEM', y='Percentage', title="SEM Distribution (% of Total)",
                             color='Percentage', color_continuous_scale='purples')
             fig_sem.update_layout(
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title="Percentage (%)",
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_sem, width='stretch')
     
-    # Row 4: Main Source of Income and Side Hustles
-    col7, col8 = st.columns(2)
-    
-    with col7:
-        # Main Source of Income from question analysis
+    with col8:
+        # Main Source of Income Bar Chart
         question_analysis = demographics_data.get("question_analysis", {})
         response_distributions = question_analysis.get("response_distributions", {})
         money_source_question = response_distributions.get("What is your main source of money?", {})
@@ -231,11 +271,17 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14, color='white'))
             )
             st.plotly_chart(fig_money, width='stretch')
     
-    with col8:
+    # Row 5: Side Hustles
+    col9, col10 = st.columns([1, 1], gap="medium")
+    
+    with col9:
         # Side Hustles Bar Chart
         if side_hustles:
             side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
@@ -247,7 +293,10 @@ def render_precomputed_demographics(demographics_data):
                 xaxis_tickangle=-45, 
                 font_size=14,
                 title_font_size=16,
-                showlegend=False
+                showlegend=False,
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickfont=dict(size=14))
             )
             st.plotly_chart(fig_hustles, width='stretch')
         
@@ -255,65 +304,129 @@ def render_precomputed_demographics(demographics_data):
     question_analysis = demographics_data.get("question_analysis", {})
     response_distributions = question_analysis.get("response_distributions", {})
     
-    if response_distributions:
-        # "Which of these describes you?" question
-        describes_question = response_distributions.get("Which of these describes you?", {})
-        if describes_question:
-            describes_data = pd.DataFrame(list(describes_question.items()), columns=['Response', 'Count'])
-            fig = px.pie(describes_data, values='Count', names='Response', 
-                        title="Commuter Type",
-                        color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
-            fig.update_layout(
-                font_size=14,
-                title_font_size=16
-            )
-            st.plotly_chart(fig, width='stretch')
+    # Add spacing before SEM analysis
+    st.markdown("")
     
-    # SEM Score Analysis
+    # SEM Analysis - Both Mean Scores and Percentage Distribution
     sem_analysis = demographics_data.get("sem_analysis", {})
     if sem_analysis and "by_segment" in sem_analysis:
-        st.markdown("### 📊 SEM Score Analysis")
-        
         by_segment = sem_analysis["by_segment"]
-        if "mean" in by_segment:
-            st.markdown("#### Mean SEM Score per SEM Group")
-            sem_mean_data = []
-            for segment, mean_score in by_segment["mean"].items():
-                sem_mean_data.append({
-                    'SEM Segment': segment,
-                    'Mean Score': mean_score
-                })
-            
-            sem_mean_df = pd.DataFrame(sem_mean_data)
-            # Sort by segment number for better visualization
-            sem_mean_df['Segment_Num'] = sem_mean_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
-            sem_mean_df = sem_mean_df.sort_values('Segment_Num')
-            
-            fig = px.bar(sem_mean_df, x='SEM Segment', y='Mean Score', 
-                        title="Mean SEM Score per SEM Group")
-            fig.update_layout(
-                xaxis_title="SEM Segment",
-                yaxis_title="Mean SEM Score"
-            )
-            st.plotly_chart(fig, width='stretch')
+        
+        # Create two columns for the charts
+        col1, col2 = st.columns([1, 1], gap="medium")
+        
+        with col1:
+            # Mean SEM Score Chart
+            if "mean" in by_segment:
+                sem_mean_data = []
+                for segment, mean_score in by_segment["mean"].items():
+                    sem_mean_data.append({
+                        'SEM Segment': segment,
+                        'Mean Score': mean_score
+                    })
+                
+                sem_mean_df = pd.DataFrame(sem_mean_data)
+                # Sort by segment number for better visualization
+                sem_mean_df['Segment_Num'] = sem_mean_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
+                sem_mean_df = sem_mean_df.sort_values('Segment_Num')
+                
+                fig_mean = px.bar(sem_mean_df, x='SEM Segment', y='Mean Score', 
+                            title="Mean SEM Score per Segment",
+                            color='Mean Score', color_continuous_scale='blues')
+                fig_mean.update_layout(
+                    xaxis_title="SEM Segment",
+                    yaxis_title="Mean Score",
+                    font_size=14,
+                    title_font_size=16,
+                    showlegend=False,
+                    xaxis=dict(tickfont=dict(size=14))
+                )
+                st.plotly_chart(fig_mean, width='stretch')
+        
+        with col2:
+            # Percentage Distribution Chart
+            if "count" in by_segment:
+                try:
+                    # Create percentage bar chart based on SEM count data
+                    sem_count_data = []
+                    count_values = by_segment["count"]
+                    
+                    # Convert all count values to integers and calculate total
+                    total_sem_count = 0
+                    for segment, count in count_values.items():
+                        try:
+                            count_int = int(count)
+                            total_sem_count += count_int
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    # Only proceed if we have a valid total
+                    if total_sem_count > 0:
+                        for segment, count in count_values.items():
+                            try:
+                                count_int = int(count)
+                                percentage = round((count_int / total_sem_count * 100), 1)
+                                sem_count_data.append({
+                                    'SEM Segment': segment,
+                                    'Count': count_int,
+                                    'Percentage': percentage
+                                })
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        if sem_count_data:
+                            sem_count_df = pd.DataFrame(sem_count_data)
+                            # Sort by segment number for better visualization
+                            sem_count_df['Segment_Num'] = sem_count_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
+                            sem_count_df = sem_count_df.sort_values('Segment_Num')
+                            
+                            fig_percent = px.bar(sem_count_df, x='SEM Segment', y='Percentage', 
+                                        title="SEM Distribution (% of Total)",
+                                        color='Percentage', color_continuous_scale='purples')
+                            fig_percent.update_layout(
+                                xaxis_title="SEM Segment",
+                                yaxis_title="Percentage (%)",
+                                font_size=14,
+                                title_font_size=16,
+                                showlegend=False,
+                                xaxis=dict(tickfont=dict(size=14))
+                            )
+                            st.plotly_chart(fig_percent, width='stretch')
+                        else:
+                            st.warning("No valid SEM count data available for percentage calculation")
+                    else:
+                        st.warning("Total SEM count is zero - cannot calculate percentages")
+                except Exception as e:
+                    st.error(f"Error processing SEM count data: {str(e)}")
+                    st.info("SEM count data may be in an unexpected format")
     
     
 
 def main():
-    st.title("📊 Demographics Dashboard")
+    st.title("Demographics Dashboard")
     st.markdown("---")
     
     # Apply card styles
     apply_card_styles()
     
-    # Custom CSS for smaller date range text
+    # Custom CSS for consistent styling
     st.markdown("""
     <style>
     .stMetric > div > div > div {
-        font-size: 0.8rem !important;
+        font-size: 0.9rem !important;
     }
     .stMetric > div > div > div[data-testid="metric-value"] {
-        font-size: 0.9rem !important;
+        font-size: 1.1rem !important;
+    }
+    .stMarkdown h3 {
+        font-size: 1.4rem !important;
+        font-weight: 600 !important;
+        margin-bottom: 1rem !important;
+    }
+    .stMarkdown h4 {
+        font-size: 1.2rem !important;
+        font-weight: 500 !important;
+        margin-bottom: 0.8rem !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -454,7 +567,7 @@ def main():
             return filtered_data
         
         # Key metrics
-        st.markdown("### 📊 Key Metrics")
+        st.markdown("### Key Metrics")
         col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
         
         with col1:
@@ -485,7 +598,7 @@ def main():
                 st.metric("Date Range", "No Data")
         
         # Add Altair chart example
-        st.markdown("### 📈 Response Trends")
+        st.markdown("### Response Trends")
         
         # Create sample trend data based on actual timestamps if available
         if 'ts' in responses.columns:
@@ -514,7 +627,7 @@ def main():
                     st.altair_chart(altair_chart, use_container_width=True)
                 else:
                     # Fallback to a simple table if Altair is not available
-                    st.info("📊 Daily Response Counts (Altair not available)")
+                    st.info("Daily Response Counts (Altair not available)")
                     st.dataframe(trend_data, width='stretch')
             else:
                 st.info("No valid date data available for trend analysis")
@@ -567,7 +680,8 @@ def main():
                         )
                         fig.update_layout(
                             xaxis_title="",
-                            yaxis_title=""
+                            yaxis_title="",
+                            xaxis=dict(tickfont=dict(size=14, color='white'))
                         )
                         st.plotly_chart(fig, width='stretch')
                     else:
@@ -595,6 +709,7 @@ def main():
                             title=f"Sample Size: {total_emp_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
                         )
+                        fig.update_traces(textfont=dict(size=14, color='white', family='Arial Black'))
                         st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No employment data available (all values are null)")
@@ -614,6 +729,7 @@ def main():
                             title=f"Sample Size: {total_side_hustles_responses:,}",
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
                         )
+                        fig.update_traces(textfont=dict(size=14, color='white', family='Arial Black'))
                         st.plotly_chart(fig, width='stretch')
                     else:
                         st.info("No side hustles data available (all values are null)")
@@ -777,7 +893,7 @@ def main():
                             color_discrete_sequence=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
                         )
                         fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-                        fig_pie.update_layout(font_size=12)
+                        fig_pie.update_layout(font_size=14)
                         st.plotly_chart(fig_pie, width='stretch')
                     
                     with col2:
@@ -791,7 +907,7 @@ def main():
                         fig_bar.update_layout(
                             xaxis_title="SEM Segment", 
                             yaxis_title="Count",
-                            font_size=12,
+                            font_size=14,
                             showlegend=False
                         )
                         st.plotly_chart(fig_bar, width='stretch')
@@ -819,8 +935,8 @@ def main():
                     st.info("No SEM segment data available (all values are null)")
     
     elif demographics_data is not None and not demographics_data.empty:
-        # Handle case where we have demographics data but no responses data
-        st.info("📊 Using pre-computed demographics data from backend")
+        # # Handle case where we have demographics data but no responses data
+        # st.info("Using pre-computed demographics data from backend")
         
         # Display key metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -846,7 +962,7 @@ def main():
             st.metric("Date Range", "Pre-computed")
         
         # Display demographics charts using the pre-computed data
-        st.markdown("### 📊 Demographics Overview")
+        st.markdown("### Demographics Overview")
         
         col1, col2 = st.columns(2)
         

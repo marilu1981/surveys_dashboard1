@@ -100,51 +100,39 @@ def main():
     st.sidebar.markdown("---")
 
     
-    # Add navigation buttons
-    if st.sidebar.button("🏠 Home", key="home", width="stretch"):
-        st.session_state.current_page = 'home'
-        st.rerun()
+    # Custom CSS for sidebar button font size and alignment
+    st.markdown("""
+    <style>
+    div[data-testid="stSidebar"] .stButton > button {
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        text-align: left !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    if st.sidebar.button("Demographics", key="demographics", width="stretch"):
-        st.session_state.current_page = 'demographics'
-        st.rerun()
+    # Add navigation buttons with consistent styling
+    nav_buttons = [
+        ("🏠 Home", "home", "home"),
+        ("Demographics", "demographics", "demographics"),
+        ("Profile Surveys", "survey_questions", "survey_questions"),
+        ("Health Surveys", "health", "health"),
+        ("Brands Analysis", "brands", "brands"),
+        ("Profile Survey", "profile", "profile"),
+        ("Funeral Cover", "funeral", "funeral"),
+        ("Cellphone Survey", "cellphone", "cellphone"),
+        ("Convenience Store", "convenience", "convenience"),
+        ("Comprehensive Analytics", "comprehensive", "comprehensive")
+    ]
     
-    if st.sidebar.button("Profile Surveys", key="survey_questions", width="stretch"):
-        st.session_state.current_page = 'survey_questions'
-        st.rerun()
-    
-    if st.sidebar.button("Health Surveys", key="health", width="stretch"):
-        st.session_state.current_page = 'health'
-        st.rerun()
-    
-    if st.sidebar.button("Brands Analysis", key="brands", width="stretch"):
-        st.session_state.current_page = 'brands'
-        st.rerun()
-    
-    if st.sidebar.button("Profile Survey", key="profile", width="stretch"):
-        st.session_state.current_page = 'profile'
-        st.rerun()
-    
-    if st.sidebar.button("Funeral Cover", key="funeral", width="stretch"):
-        st.session_state.current_page = 'funeral'
-        st.rerun()
-    
-    if st.sidebar.button("Cellphone Survey", key="cellphone", width="stretch"):
-        st.session_state.current_page = 'cellphone'
-        st.rerun()
-    
-    if st.sidebar.button("Convenience Store", key="convenience", width="stretch"):
-        st.session_state.current_page = 'convenience'
-        st.rerun()
-    
-    if st.sidebar.button("Comprehensive Analytics", key="comprehensive", width="stretch"):
-        st.session_state.current_page = 'comprehensive'
-        st.rerun()
+    for button_text, key, page in nav_buttons:
+        if st.sidebar.button(button_text, key=key, use_container_width=True):
+            st.session_state.current_page = page
+            st.rerun()
     
     # Add Sebenza logo below navigation buttons
     st.sidebar.markdown("---")
-    st.sidebar.markdown("Sebenza Taxi")
-    
+
     # Display content based on current page
     if st.session_state.current_page == 'home':
         show_home_page()
@@ -246,6 +234,37 @@ def show_home_page():
     # Apply card styles
     apply_card_styles()
     
+    # Survey Selection
+    st.markdown("### 📊 Survey Selection")
+    try:
+        from backend_client import get_backend_client
+        client = get_backend_client()
+        if client:
+            # Get available surveys
+            surveys_index = client.get_surveys_index()
+            if not surveys_index.empty and 'survey' in surveys_index.columns:
+                available_surveys = surveys_index['survey'].unique().tolist()
+            else:
+                # Fallback to known surveys
+                available_surveys = [
+                    "SB055_Profile_Survey1",
+                    "SB056_Cellphone_Survey", 
+                    "FI027_1Life_Funeral_Cover_Survey",
+                    "FI028_1Life_Funeral_Cover_Survey2"
+                ]
+            
+            selected_survey = st.selectbox(
+                "Select Survey:",
+                options=available_surveys,
+                index=0,
+                key="home_survey_selection"
+            )
+        else:
+            raise Exception("No backend connection")
+    except:
+        # Fallback to default survey
+        selected_survey = "SB055_Profile_Survey1"
+        st.info("Using default survey: SB055_Profile_Survey1")
     
     # Try to get real metrics from backend, fallback to sample data
     responses = None
@@ -266,7 +285,7 @@ def show_home_page():
                 ]
             else:
                 # Fallback to responses endpoint with limit and required survey parameter
-                responses = client.get_responses(survey="SB055_Profile_Survey1", limit=100)
+                responses = client.get_responses(survey=selected_survey, limit=1000)
                 if not responses.empty:
                     # Calculate real metrics
                     total_responses = len(responses)
@@ -372,37 +391,81 @@ def show_home_page():
         **Last Updated**: `15-Sept-2025`
         """)
 
-    # Add trend chart if data is available
+    # Add date range filter and trend chart if data is available
     try:
         if responses is not None and hasattr(responses, 'empty') and not responses.empty and 'ts' in responses.columns:
-            st.markdown("### Response Trends")
-            dates = pd.to_datetime(responses['ts'], errors='coerce').dropna()
-            if not dates.empty:
-                # Create daily response counts
-                daily_counts = dates.dt.date.value_counts().sort_index()
-                trend_data = pd.DataFrame({
-                    'date': daily_counts.index.astype(str),
-                    'responses': daily_counts.values
-                })
+            # Date Range Filter
+            st.markdown("### 📅 Date Range Filter")
+            
+            # Convert ts column to datetime if it exists
+            responses['ts'] = pd.to_datetime(responses['ts'], errors='coerce')
+            valid_dates = responses['ts'].dropna()
+            
+            if not valid_dates.empty:
+                min_date = valid_dates.min().date()
+                max_date = valid_dates.max().date()
                 
-                # Create Altair chart
-                altair_chart = create_altair_chart(
-                    trend_data, 
-                    'line', 
-                    'date', 
-                    'responses', 
-                    'Daily Response Trends',
-                    width=800,
-                    height=300
+                # Create date slider
+                date_range = st.date_input(
+                    "Select date range:",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="home_date_range_filter"
                 )
                 
-                if altair_chart is not None:
-                    st.altair_chart(altair_chart, use_container_width=True)
+                # Apply date filter to responses
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    # Convert to datetime for comparison
+                    start_datetime = pd.to_datetime(start_date)
+                    end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
+                    
+                    # Filter responses by date range
+                    filtered_responses = responses[
+                        (responses['ts'] >= start_datetime) & 
+                        (responses['ts'] < end_datetime)
+                    ]
+                    
+                    st.info(f"📊 Showing data from {start_date} to {end_date} ({len(filtered_responses):,} responses)")
+                    
+                    # Create trend chart with filtered data
+                    st.markdown("### Response Trends")
+                    dates = filtered_responses['ts'].dropna()
+                    if not dates.empty:
+                        # Create daily response counts
+                        daily_counts = dates.dt.date.value_counts().sort_index()
+                        trend_data = pd.DataFrame({
+                            'date': daily_counts.index.astype(str),
+                            'responses': daily_counts.values
+                        })
+                        
+                        # Create Altair chart with proper data validation
+                        if len(trend_data) > 0 and trend_data['responses'].sum() > 0:
+                            altair_chart = create_altair_chart(
+                                trend_data, 
+                                'line', 
+                                'date', 
+                                'responses', 
+                                'Daily Response Trends',
+                                width=800,
+                                height=300
+                            )
+                            
+                            if altair_chart is not None:
+                                st.altair_chart(altair_chart, use_container_width=True)
+                            else:
+                                st.info("Daily Response Counts (Altair not available)")
+                                st.dataframe(trend_data, use_container_width=True)
+                        else:
+                            st.info("No data available for the selected date range")
+                            st.dataframe(trend_data, use_container_width=True)
+                    else:
+                        st.info("No valid date data available for trend analysis in selected range")
                 else:
-                    st.info("Daily Response Counts (Altair not available)")
-                    st.dataframe(trend_data, use_container_width=True)
+                    st.info("📊 Please select both start and end dates")
             else:
-                st.info("No valid date data available for trend analysis")
+                st.warning("⚠️ No valid date data found in responses")
         else:
             st.info("No timestamp data available for trend analysis")
     except Exception as e:

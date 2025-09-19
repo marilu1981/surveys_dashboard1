@@ -161,7 +161,10 @@ class BackendClient:
     def get_survey_group(_self, group_id: str, full: bool = True) -> pd.DataFrame:
         """Get survey group data (combines all surveys in a group) from your backend"""
         try:
-            response = _self.session.get(f"{_self.base_url}/api/survey-group/{group_id}?full={str(full).lower()}")
+            url = f"{_self.base_url}/api/survey-group/{group_id}?full={str(full).lower()}"
+            st.write(f"🔗 Calling API: {url}")
+            response = _self.session.get(url)
+            st.write(f"📊 Response status: {response.status_code}")
             response.raise_for_status()
             
             # Try to parse JSON - handle multiple JSON objects
@@ -202,8 +205,10 @@ class BackendClient:
                 return pd.DataFrame()
                 
         except requests.exceptions.RequestException as e:
+            st.error(f"Request error for survey group {group_id}: {str(e)}")
             return pd.DataFrame()
         except Exception as e:
+            st.error(f"Error loading survey group {group_id}: {str(e)}")
             return pd.DataFrame()
     
     @st.cache_data(ttl=300)  # Cache for 5 minutes

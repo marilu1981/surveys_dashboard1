@@ -17,12 +17,12 @@ def main():
     apply_card_styles()
     
     # Get backend client
-        try:
-            from backend_client import get_backend_client
+    try:
+        from backend_client import get_backend_client
         # Clear cache to ensure we get the latest backend client with new methods
         if hasattr(st, 'cache_resource'):
             st.cache_resource.clear()
-            client = get_backend_client()
+        client = get_backend_client()
         
         if not client:
             st.error("❌ Backend connection failed")
@@ -33,7 +33,7 @@ def main():
         # Load legacy survey data
         if hasattr(client, 'get_legacy_survey_data'):
             legacy_data = client.get_legacy_survey_data(limit=1000)  # Reduced for cost efficiency
-            else:
+        else:
             st.error("❌ Legacy survey data method not available. Please restart the app to load the latest backend client.")
             st.info("The backend client needs to be refreshed to include the new legacy survey data method.")
             
@@ -69,32 +69,32 @@ def main():
         st.markdown("### 🔍 Filters")
         
         col1, col2, col3 = st.columns(3)
-    
-    with col1:
+        
+        with col1:
             # Gender filter
             if 'gender' in legacy_data.columns:
                 genders = ['All'] + list(legacy_data['gender'].unique())
                 selected_gender = st.selectbox("Gender", genders, index=0)
             else:
                 selected_gender = 'All'
-    
-    with col2:
+        
+        with col2:
             # Age group filter
             if 'age_group' in legacy_data.columns:
                 age_groups = ['All'] + list(legacy_data['age_group'].unique())
                 selected_age = st.selectbox("Age Group", age_groups, index=0)
             else:
                 selected_age = 'All'
-    
-    with col3:
+        
+        with col3:
             # Employment status filter
             if 'employment_status' in legacy_data.columns:
                 employment_options = ['All'] + [str(x) for x in legacy_data['employment_status'].unique() if pd.notna(x)]
                 selected_employment = st.selectbox("Employment Status", employment_options, index=0)
             else:
                 selected_employment = 'All'
-    
-    # Apply filters
+        
+        # Apply filters
         filtered_data = legacy_data.copy()
         
         if selected_gender != 'All':

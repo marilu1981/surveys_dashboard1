@@ -22,23 +22,33 @@ def load_funeral_cover_data():
             
             # Load FI027 group (74,214 total responses)
             try:
+                st.info("🔄 Loading FI027 group data...")
                 fi027_data = client.get_survey_group("FI027", full=False)  # Use limit for cost efficiency
+                st.write(f"FI027 data shape: {fi027_data.shape if not fi027_data.empty else 'Empty'}")
                 if not fi027_data.empty:
                     # Add group identifier
                     fi027_data['SURVEY_GROUP'] = 'FI027'
                     all_data.append(fi027_data)
+                    st.success(f"✅ Loaded FI027: {len(fi027_data)} records")
+                else:
+                    st.warning("⚠️ FI027 data is empty")
             except Exception as e:
-                st.warning(f"Could not load FI027 group: {str(e)}")
+                st.error(f"❌ Could not load FI027 group: {str(e)}")
             
             # Load FI028 group (34,549 total responses)
             try:
+                st.info("🔄 Loading FI028 group data...")
                 fi028_data = client.get_survey_group("FI028", full=False)  # Use limit for cost efficiency
+                st.write(f"FI028 data shape: {fi028_data.shape if not fi028_data.empty else 'Empty'}")
                 if not fi028_data.empty:
                     # Add group identifier
                     fi028_data['SURVEY_GROUP'] = 'FI028'
                     all_data.append(fi028_data)
+                    st.success(f"✅ Loaded FI028: {len(fi028_data)} records")
+                else:
+                    st.warning("⚠️ FI028 data is empty")
             except Exception as e:
-                st.warning(f"Could not load FI028 group: {str(e)}")
+                st.error(f"❌ Could not load FI028 group: {str(e)}")
             
             if all_data:
                 combined_data = pd.concat(all_data, ignore_index=True)

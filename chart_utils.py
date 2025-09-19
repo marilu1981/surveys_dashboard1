@@ -11,7 +11,7 @@ except ImportError:
 
 def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Chart', width=300, height=180):
     """
-    Create an Altair chart with dark theme styling
+    Create an Altair chart with dark theme styling and Vega-Lite v6 compatibility
     
     Parameters:
     - data: DataFrame with the data
@@ -36,8 +36,25 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         st.warning(f"⚠️ Required columns '{x_col}' or '{y_col}' not found in data")
         return None
     
+    # Additional data validation to prevent infinite extent errors
+    if data[y_col].isna().all() or data[y_col].isnull().all():
+        st.warning("⚠️ All values in y-axis column are null/NaN")
+        return None
+    
+    # Check for infinite or extreme values
+    if data[y_col].isin([float('inf'), float('-inf')]).any():
+        st.warning("⚠️ Data contains infinite values, filtering them out")
+        data = data[~data[y_col].isin([float('inf'), float('-inf')])]
+    
+    if data.empty:
+        st.warning("⚠️ No valid data remaining after filtering")
+        return None
+    
     try:
-        # Base chart configuration
+        # Set Vega-Lite version to v6 for compatibility
+        alt.data_transformers.enable('json')
+        
+        # Base chart configuration with Vega-Lite v6 compatibility
         base_chart = alt.Chart(data).properties(
             width=width,
             height=height,
@@ -53,32 +70,32 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         return None
     
     try:
-        # Create chart based on type
+        # Create chart based on type with proper data types
         if chart_type == 'line':
             chart = base_chart.mark_line(color='#2979ff', strokeWidth=2).encode(
-                x=alt.X(x_col, title=''),
-                y=alt.Y(y_col, title='')
+                x=alt.X(x_col, title='', type='temporal' if 'date' in x_col.lower() else 'ordinal'),
+                y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
         elif chart_type == 'bar':
             chart = base_chart.mark_bar(color='#2979ff').encode(
-                x=alt.X(x_col, title=''),
-                y=alt.Y(y_col, title='')
+                x=alt.X(x_col, title='', type='ordinal'),
+                y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
         elif chart_type == 'scatter':
             chart = base_chart.mark_circle(color='#2979ff', size=60).encode(
-                x=alt.X(x_col, title=''),
-                y=alt.Y(y_col, title='')
+                x=alt.X(x_col, title='', type='quantitative'),
+                y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
         elif chart_type == 'area':
             chart = base_chart.mark_area(color='#2979ff', opacity=0.7).encode(
-                x=alt.X(x_col, title=''),
-                y=alt.Y(y_col, title='')
+                x=alt.X(x_col, title='', type='temporal' if 'date' in x_col.lower() else 'ordinal'),
+                y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
         else:
             # Default to line chart
             chart = base_chart.mark_line(color='#2979ff', strokeWidth=2).encode(
-                x=alt.X(x_col, title=''),
-                y=alt.Y(y_col, title='')
+                x=alt.X(x_col, title='', type='temporal' if 'date' in x_col.lower() else 'ordinal'),
+                y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
         
         return chart

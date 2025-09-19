@@ -98,6 +98,14 @@ def render_precomputed_demographics(demographics_data):
     # Individual Demographics Charts
     st.markdown("### 📊 Commuter Demographics")
     
+    # Debug: Show available data keys
+    with st.expander("🔍 Debug: Available Data Keys", expanded=False):
+        st.write("**Overall Demographics Keys:**", list(overall_demographics.keys()))
+        if "age_groups" in overall_demographics:
+            st.write("**Age Groups Data:**", overall_demographics["age_groups"])
+        if "age_group" in overall_demographics:
+            st.write("**Age Group Data:**", overall_demographics["age_group"])
+    
     # Row 1: Gender and Age
     col1, col2 = st.columns(2)
     
@@ -111,7 +119,7 @@ def render_precomputed_demographics(demographics_data):
     
     with col2:
         # Age Bar Chart
-        age_data = overall_demographics.get("age_group", {})
+        age_data = overall_demographics.get("age_groups", {}) or overall_demographics.get("age_group", {})
         if age_data:
             age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
             total_age = age_df['Count'].sum()

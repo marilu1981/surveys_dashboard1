@@ -22,7 +22,7 @@ def load_funeral_cover_data():
             
             # Load FI027 group (74,214 total responses)
             try:
-                fi027_data = client.get_survey_group("FI027", full=True)
+                fi027_data = client.get_survey_group("FI027", full=False)  # Use limit for cost efficiency
                 if not fi027_data.empty:
                     # Add group identifier
                     fi027_data['SURVEY_GROUP'] = 'FI027'
@@ -32,7 +32,7 @@ def load_funeral_cover_data():
             
             # Load FI028 group (34,549 total responses)
             try:
-                fi028_data = client.get_survey_group("FI028", full=True)
+                fi028_data = client.get_survey_group("FI028", full=False)  # Use limit for cost efficiency
                 if not fi028_data.empty:
                     # Add group identifier
                     fi028_data['SURVEY_GROUP'] = 'FI028'

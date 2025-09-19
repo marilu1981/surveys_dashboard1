@@ -29,8 +29,8 @@ def get_real_data():
     
     try:
         # Get responses data from your backend using optimized endpoint
-        # Try to get Profile Survey data first (most comprehensive) - use individual survey endpoint for full data
-        responses = client.get_individual_survey("SB055_Profile_Survey1", full=True)
+        # Try to get Profile Survey data first (most comprehensive) - use individual survey endpoint with limit for cost efficiency
+        responses = client.get_individual_survey("SB055_Profile_Survey1", limit=1000)
         
         
         if responses.empty:

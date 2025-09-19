@@ -85,6 +85,19 @@ def main():
     # Sidebar navigation
     st.sidebar.title("Sebenza Surveys Dashboard")
     st.sidebar.markdown("---")
+    
+    # Data usage monitoring
+    if 'data_usage' in st.session_state and st.session_state.data_usage:
+        with st.sidebar.expander("💰 Data Usage", expanded=False):
+            total_records = sum(usage['records'] for usage in st.session_state.data_usage)
+            st.metric("Total Records Loaded", f"{total_records:,}")
+            st.metric("Pages Visited", len(st.session_state.data_usage))
+            
+            # Show recent usage
+            for usage in st.session_state.data_usage[-3:]:  # Show last 3
+                st.write(f"📄 {usage['page']}: {usage['records']:,} records")
+    
+    st.sidebar.markdown("---")
 
     
     # Add navigation buttons

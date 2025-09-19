@@ -18,7 +18,7 @@ def load_cellphone_survey_data():
         client = get_backend_client()
         if client:
             # Load data from SB056 group (4,426 total responses)
-            cellphone_data = client.get_survey_group("SB056", full=True)
+            cellphone_data = client.get_survey_group("SB056", full=False)  # Use limit for cost efficiency
             if not cellphone_data.empty:
                 # Add group identifier
                 cellphone_data['SURVEY_GROUP'] = 'SB056'

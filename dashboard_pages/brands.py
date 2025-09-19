@@ -28,13 +28,23 @@ def main():
         st.info("📊 Loading legacy survey data for brands analysis...")
         
         # Load legacy survey data
-        legacy_data = client.get_legacy_survey_data(limit=5000)
+        legacy_data = client.get_legacy_survey_data(limit=1000)  # Reduced for cost efficiency
         
         if legacy_data.empty:
             st.warning("No legacy survey data available")
             return
             
         st.success(f"✅ Loaded {len(legacy_data):,} legacy survey responses")
+        
+        # Track data usage for cost monitoring
+        if 'data_usage' not in st.session_state:
+            st.session_state.data_usage = []
+        st.session_state.data_usage.append({
+            'page': 'Brands',
+            'records': len(legacy_data),
+            'endpoint': '/api/legacy-survey-data',
+            'timestamp': pd.Timestamp.now()
+        })
         
         # Show data structure info
         with st.expander("🔍 Data Structure", expanded=False):

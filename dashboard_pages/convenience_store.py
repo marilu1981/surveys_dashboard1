@@ -18,7 +18,7 @@ def load_convenience_store_data():
         client = get_backend_client()
         if client:
             # Load data from convenience store survey with full data
-            survey_data = client.get_individual_survey("TP005_Convinience_Store_Products_Survey_Briefing_Form", full=True)
+            survey_data = client.get_individual_survey("TP005_Convinience_Store_Products_Survey_Briefing_Form", limit=1000)  # Use limit for cost efficiency
             if not survey_data.empty:
                 # Add survey identifier
                 survey_data['SURVEY_ID'] = "TP005_Convinience_Store_Products_Survey_Briefing_Form"

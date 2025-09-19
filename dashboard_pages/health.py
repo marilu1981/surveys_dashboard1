@@ -21,8 +21,8 @@ def load_health_data(full: bool = True):
         client = get_backend_client()
         if client:
             if full:
-                # Use the individual survey endpoint with full=true for complete dataset
-                health_data = client.get_individual_survey("SB055_Profile_Survey1", full=True)
+                # Use the individual survey endpoint with limit for cost efficiency
+                health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000)
             else:
                 # Use the health surveys method with limit for sample data
                 health_data = client.get_health_surveys(limit=100)
@@ -79,8 +79,8 @@ def main():
     
     # Fetch health data with caching
     # Load full health data for complete analysis
-    with st.spinner("Loading complete health survey dataset..."):
-        health_data = load_health_data(full=True)
+    with st.spinner("Loading health survey dataset..."):
+        health_data = load_health_data(full=False)  # Use limit instead of full=True for cost efficiency
     
     if health_data is None:
         st.info("Creating sample health data for demonstration")

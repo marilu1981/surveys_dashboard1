@@ -36,7 +36,7 @@ def get_real_data():
             return None, None, demographics_data, None, None
         
         # Fallback to responses data if demographics endpoint not available
-        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=1000)
+        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=500)  # Reduced for cost efficiency
         
         if responses.empty:
             return None, None, None, None, None

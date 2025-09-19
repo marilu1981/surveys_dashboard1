@@ -13,7 +13,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'styles'))
 
 # Import our new modules
 from card_style import apply_card_styles, create_metric_card
-from chart_utils import create_altair_chart
+from chart_utils import create_chart
+from styles.global_styles import inject_global_styles
 
 # Image service removed
 
@@ -37,6 +38,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
 def main():
+    # Apply global styles
+    inject_global_styles()
+    
     # Temporarily disable authentication for deployment testing
     # try:
     #     # Authentication
@@ -100,16 +104,7 @@ def main():
     st.sidebar.markdown("---")
 
     
-    # Custom CSS for sidebar button font size and alignment
-    st.markdown("""
-    <style>
-    div[data-testid="stSidebar"] .stButton > button {
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        text-align: left !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Sidebar button styling is now handled by global_styles.py
     
     # Add navigation buttons with consistent styling
     nav_buttons = [
@@ -440,22 +435,29 @@ def show_home_page():
                             'responses': daily_counts.values
                         })
                         
-                        # Create Altair chart with proper data validation
+                        # Create chart with proper data validation and standardized fonts
                         if len(trend_data) > 0 and trend_data['responses'].sum() > 0:
-                            altair_chart = create_altair_chart(
+                            chart = create_chart(
                                 trend_data, 
                                 'line', 
                                 'date', 
                                 'responses', 
                                 'Daily Response Trends',
                                 width=800,
-                                height=300
+                                height=300,
+                                font_size=14,
+                                title_font_size=16,
+                                axis_font_size=12
                             )
                             
-                            if altair_chart is not None:
-                                st.altair_chart(altair_chart, use_container_width=True)
+                            if chart is not None:
+                                # Check if it's a Plotly figure or Altair chart
+                                if hasattr(chart, 'update_layout'):  # Plotly figure
+                                    st.plotly_chart(chart, use_container_width=True)
+                                else:  # Altair chart
+                                    st.altair_chart(chart, use_container_width=True)
                             else:
-                                st.info("Daily Response Counts (Altair not available)")
+                                st.info("Daily Response Counts (Chart library not available)")
                                 st.dataframe(trend_data, use_container_width=True)
                         else:
                             st.info("No data available for the selected date range")

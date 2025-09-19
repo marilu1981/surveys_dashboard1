@@ -409,27 +409,7 @@ def main():
     # Apply card styles
     apply_card_styles()
     
-    # Custom CSS for consistent styling
-    st.markdown("""
-    <style>
-    .stMetric > div > div > div {
-        font-size: 0.9rem !important;
-    }
-    .stMetric > div > div > div[data-testid="metric-value"] {
-        font-size: 1.1rem !important;
-    }
-    .stMarkdown h3 {
-        font-size: 1.4rem !important;
-        font-weight: 600 !important;
-        margin-bottom: 1rem !important;
-    }
-    .stMarkdown h4 {
-        font-size: 1.2rem !important;
-        font-weight: 500 !important;
-        margin-bottom: 0.8rem !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Styling is now handled by global_styles.py
     
     # Get data
     survey_ids, responses, demographics_data, analytics, score_dist = get_real_data()

@@ -19,6 +19,9 @@ def main():
     # Get backend client
     try:
         from backend_client import get_backend_client
+        # Clear cache to ensure we get the latest backend client with new methods
+        if hasattr(st, 'cache_resource'):
+            st.cache_resource.clear()
         client = get_backend_client()
         
         if not client:
@@ -28,7 +31,17 @@ def main():
         st.info("📊 Loading legacy survey data for brands analysis...")
         
         # Load legacy survey data
-        legacy_data = client.get_legacy_survey_data(limit=1000)  # Reduced for cost efficiency
+        if hasattr(client, 'get_legacy_survey_data'):
+            legacy_data = client.get_legacy_survey_data(limit=1000)  # Reduced for cost efficiency
+        else:
+            st.error("❌ Legacy survey data method not available. Please restart the app to load the latest backend client.")
+            st.info("The backend client needs to be refreshed to include the new legacy survey data method.")
+            
+            # Add a button to manually refresh the backend client
+            if st.button("🔄 Refresh Backend Client"):
+                st.cache_resource.clear()
+                st.rerun()
+            return
         
         if legacy_data.empty:
             st.warning("No legacy survey data available")

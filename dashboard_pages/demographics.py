@@ -23,7 +23,7 @@ def get_real_data():
     """Get real data from your backend API"""
     client = get_backend_client()
     if not client:
-        st.warning("⚠️ Backend connection not available - using sample data")
+        # st.warning("⚠️ Backend connection not available - using sample data")
         return None, None, None, None, None
     
     try:
@@ -32,7 +32,7 @@ def get_real_data():
         
         if demographics_data and "error" not in demographics_data:
             # Use pre-computed demographics data - this is the rich data structure
-            st.success("✅ Using pre-computed demographics data from backend")
+            # st.success("✅ Using pre-computed demographics data from backend")
             return None, None, demographics_data, None, None
         
         # Fallback to responses data if demographics endpoint not available
@@ -93,79 +93,50 @@ def render_precomputed_demographics(demographics_data):
     overall_demographics = demographics_data.get("overall_demographics", {})
     side_hustles = overall_demographics.get("side_hustles", {})
     
-    if side_hustles:
-        st.markdown("### 💼 Side Hustles Analysis")
-        
-        side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
-        fig = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles Distribution")
-        fig.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig, width='stretch')
+
     
-    # Cross-tabulations
-    cross_tabulations = demographics_data.get("cross_tabulations", {})
+    # Individual Demographics Charts
+    st.markdown("### 📊 Commuter Demographics")
     
-    if cross_tabulations:
-        st.markdown("### 📊 Cross-Tabulations")
-        
-        # Gender by Age
-        gender_by_age = cross_tabulations.get("gender_by_age", {})
-        if gender_by_age:
-            st.markdown("#### Gender by Age Group")
-            gender_age_data = []
-            for age_group, genders in gender_by_age.items():
-                for gender, count in genders.items():
-                    gender_age_data.append({
-                        'Age Group': age_group,
-                        'Gender': gender,
-                        'Count': count
-                    })
-            
-            if gender_age_data:
-                gender_age_df = pd.DataFrame(gender_age_data)
-                fig = px.bar(gender_age_df, x='Age Group', y='Count', color='Gender', 
-                           title="Gender Distribution by Age Group", barmode='group')
-                st.plotly_chart(fig, width='stretch')
-        
-        # Employment by Gender
-        employment_by_gender = cross_tabulations.get("employment_by_gender", {})
-        if employment_by_gender:
-            st.markdown("#### Employment Status by Gender")
-            emp_gender_data = []
-            for gender, employments in employment_by_gender.items():
-                for employment, count in employments.items():
-                    emp_gender_data.append({
-                        'Gender': gender,
-                        'Employment': employment,
-                        'Count': count
-                    })
-            
-            if emp_gender_data:
-                emp_gender_df = pd.DataFrame(emp_gender_data)
-                fig = px.bar(emp_gender_df, x='Employment', y='Count', color='Gender',
-                           title="Employment Status by Gender", barmode='group')
-                fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, width='stretch')
-        
-        # Salary by Age
-        salary_by_age = cross_tabulations.get("salary_by_age", {})
-        if salary_by_age:
-            st.markdown("#### Salary Distribution by Age Group")
-            salary_age_data = []
-            for age_group, salaries in salary_by_age.items():
-                for salary, count in salaries.items():
-                    salary_age_data.append({
-                        'Age Group': age_group,
-                        'Salary Band': salary,
-                        'Count': count
-                    })
-            
-            if salary_age_data:
-                salary_age_df = pd.DataFrame(salary_age_data)
-                fig = px.bar(salary_age_df, x='Age Group', y='Count', color='Salary Band',
-                           title="Salary Distribution by Age Group", barmode='group')
-                fig.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig, width='stretch')
+    # Create a 2x2 grid for the charts
+    col1, col2 = st.columns(2)
     
+    with col1:
+        # Gender Pie Chart
+        gender_data = overall_demographics.get("gender", {})
+        if gender_data:
+            st.markdown("#### Gender Distribution")
+            gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
+            fig_gender = px.pie(gender_df, values='Count', names='Gender', title="Gender Distribution")
+            st.plotly_chart(fig_gender, width='stretch')
+        
+        # Age Bar Chart
+        age_data = overall_demographics.get("age_group", {})
+        if age_data:
+            st.markdown("#### Age Group Distribution")
+            age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
+            fig_age = px.bar(age_df, x='Age Group', y='Count', title="Age Group Distribution")
+            fig_age.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_age, width='stretch')
+    
+    with col2:
+        # Income Bar Chart
+        income_data = overall_demographics.get("salary", {})
+        if income_data:
+            st.markdown("#### Income Distribution")
+            income_df = pd.DataFrame(list(income_data.items()), columns=['Income Range', 'Count'])
+            fig_income = px.bar(income_df, x='Income Range', y='Count', title="Income Distribution")
+            fig_income.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_income, width='stretch')
+        
+        # Side Hustles Bar Chart
+        if side_hustles:
+            st.markdown("#### Side Hustles Distribution")
+            side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
+            fig_hustles = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles Distribution")
+            fig_hustles.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_hustles, width='stretch')
+        
     # Question Analysis - Response Distributions
     question_analysis = demographics_data.get("question_analysis", {})
     response_distributions = question_analysis.get("response_distributions", {})

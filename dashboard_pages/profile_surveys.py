@@ -726,19 +726,9 @@ def main():
                     st.plotly_chart(fig_money_bar, width='stretch')
                 
                 # Money source data table and Side Hustles chart
-                st.markdown("##### Money Source Breakdown")
-                col_table, col_side_hustles = st.columns([2, 1])
-
-                with col_table:
-                    money_data = pd.DataFrame({
-                        "Money Source": money_dist.index,
-                        "Count": [f"{count:,}" for count in money_dist.values],
-                        "Percentage": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
-                    })
-                    st.table(money_data)
+                col_side_hustles, col_table = st.columns([1, 2])
 
                 with col_side_hustles:
-                    st.markdown("##### Side Hustles Distribution")
                     side_hustles_data = filtered_money['side_hustles'].dropna()
                     side_hustles_count = len(side_hustles_data)
 
@@ -767,6 +757,14 @@ def main():
                         st.plotly_chart(fig_side_hustles, width='stretch')
                     else:
                         st.info("No side hustles data available (all values are NaN)")
+
+                with col_table:
+                    money_data = pd.DataFrame({
+                        "Money Source": money_dist.index,
+                        "Count": [f"{count:,}" for count in money_dist.values],
+                        "Percentage": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
+                    })
+                    st.table(money_data)
         else:
             st.info(f"No responses found for the question: '{money_question}'")
         

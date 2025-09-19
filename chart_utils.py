@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 # Try to import altair, but make it optional
 try:
@@ -23,7 +24,7 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
                        font_size=14, title_font_size=16, axis_font_size=12):
     """
     Create an Altair chart with dark theme styling and Vega-Lite v6 compatibility
-    
+
     Parameters:
     - data: DataFrame with the data
     - chart_type: 'line', 'bar', 'scatter', 'area'
@@ -36,41 +37,53 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
     - title_font_size: font size for chart title (default: 16)
     - axis_font_size: font size for axis labels and ticks (default: 12)
     """
-    
+
     if not ALTAIR_AVAILABLE or alt is None:
         st.warning("⚠️ Altair is not available. Please install it with: pip install altair")
         return None
-    
+
     # Validate data
     if data is None or data.empty:
         st.warning("⚠️ No data available for chart")
         return None
-    
+
     if x_col not in data.columns or y_col not in data.columns:
         st.warning(f"⚠️ Required columns '{x_col}' or '{y_col}' not found in data")
         return None
-    
+
     # Additional data validation to prevent infinite extent errors
-    if data[y_col].isna().all() or data[y_col].isnull().all():
-        st.warning("⚠️ All values in y-axis column are null/NaN")
+    data = data.copy()
+
+    if data[y_col].isna().all():
+        st.warning("All values in y-axis column are null/NaN")
         return None
-    
-    # Check for infinite or extreme values
-    if data[y_col].isin([float('inf'), float('-inf')]).any():
-        st.warning("⚠️ Data contains infinite values, filtering them out")
-        data = data[~data[y_col].isin([float('inf'), float('-inf')])]
-    
+
+    if 'date' in x_col.lower() or 'time' in x_col.lower():
+        data[x_col] = pd.to_datetime(data[x_col], errors='coerce')
+    elif not pd.api.types.is_numeric_dtype(data[x_col]):
+        data[x_col] = pd.to_numeric(data[x_col], errors='coerce')
+
+    data[y_col] = pd.to_numeric(data[y_col], errors='coerce')
+
+    if pd.api.types.is_numeric_dtype(data[y_col]):
+        data.loc[np.isinf(data[y_col]), y_col] = pd.NA
+    if pd.api.types.is_numeric_dtype(data[x_col]):
+        data.loc[np.isinf(data[x_col]), x_col] = pd.NA
+
+    data = data.dropna(subset=[x_col, y_col])
+
     if data.empty:
-        st.warning("⚠️ No valid data remaining after filtering")
+        st.warning("No valid data remaining after cleaning")
+        return None
+
     if len(data) < 2:
         st.info("Not enough data points to render the chart; showing table instead.")
         return None
-        return None
-    
+
     try:
         # Set Vega-Lite version to v6 for compatibility
         alt.data_transformers.enable('json')
-        
+
         # Base chart configuration with Vega-Lite v6 compatibility and standardized fonts
         base_chart = alt.Chart(data).properties(
             width=width,
@@ -98,7 +111,7 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
     except Exception as e:
         st.warning(f"⚠️ Error creating Altair chart: {str(e)}")
         return None
-    
+
     try:
         # Create chart based on type with proper data types
         if chart_type == 'line':
@@ -127,7 +140,7 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
                 x=alt.X(x_col, title='', type='temporal' if 'date' in x_col.lower() else 'ordinal'),
                 y=alt.Y(y_col, title='', type='quantitative', scale=alt.Scale(zero=False))
             )
-        
+
         return chart
     except Exception as e:
         st.warning(f"⚠️ Error creating {chart_type} chart: {str(e)}")
@@ -137,7 +150,7 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
                        font_size=14, title_font_size=16, axis_font_size=12):
     """
     Create a Plotly chart with standardized fonts and dark theme
-    
+
     Parameters:
     - data: DataFrame with the data
     - chart_type: 'line', 'bar', 'scatter', 'area'
@@ -150,27 +163,27 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
     - title_font_size: font size for chart title (default: 16)
     - axis_font_size: font size for axis labels and ticks (default: 12)
     """
-    
+
     if not PLOTLY_AVAILABLE or px is None or go is None:
         st.warning("⚠️ Plotly is not available. Please install it with: pip install plotly")
         return None
-    
+
     # Validate data
     if data is None or data.empty:
         st.warning("⚠️ No data available for chart")
         return None
-    
+
     if x_col not in data.columns or y_col not in data.columns:
         st.warning(f"⚠️ Required columns '{x_col}' or '{y_col}' not found in data")
         return None
-    
+
     # Standardized font configuration
     font_config = {
         'family': 'Arial, sans-serif',
         'size': font_size,
         'color': '#F8F8FF'
     }
-    
+
     title_config = {
         'text': title,
         'font': {
@@ -181,7 +194,7 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         'x': 0.5,
         'xanchor': 'center'
     }
-    
+
     axis_config = {
         'tickfont': {
             'family': 'Arial, sans-serif',
@@ -200,7 +213,7 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         'linecolor': '#F8F8FF',
         'tickcolor': '#F8F8FF'
     }
-    
+
     try:
         # Create chart based on type
         if chart_type == 'line':
@@ -214,7 +227,7 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
         else:
             # Default to line chart
             fig = px.line(data, x=x_col, y=y_col, title=title)
-        
+
         # Apply standardized styling
         fig.update_layout(
             title=title_config,
@@ -231,7 +244,7 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
                 bordercolor='#2E3440'
             )
         )
-        
+
         # Update line/bar colors for consistency
         if chart_type in ['line', 'area']:
             fig.update_traces(line=dict(color='#2979ff', width=2))
@@ -239,9 +252,9 @@ def create_plotly_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
             fig.update_traces(marker=dict(color='#2979ff'))
         elif chart_type == 'scatter':
             fig.update_traces(marker=dict(color='#2979ff', size=8))
-        
+
         return fig
-        
+
     except Exception as e:
         st.warning(f"⚠️ Error creating {chart_type} chart: {str(e)}")
         return None
@@ -250,7 +263,7 @@ def create_chart(data, chart_type='line', x_col='x', y_col='y', title='Chart', w
                 font_size=14, title_font_size=16, axis_font_size=12, prefer_plotly=True):
     """
     Create a chart using the best available library (Plotly preferred, Altair fallback)
-    
+
     Parameters:
     - data: DataFrame with the data
     - chart_type: 'line', 'bar', 'scatter', 'area'
@@ -263,11 +276,11 @@ def create_chart(data, chart_type='line', x_col='x', y_col='y', title='Chart', w
     - title_font_size: font size for chart title (default: 16)
     - axis_font_size: font size for axis labels and ticks (default: 12)
     - prefer_plotly: if True, try Plotly first, then Altair (default: True)
-    
+
     Returns:
     - Plotly figure or Altair chart object
     """
-    
+
     if prefer_plotly and PLOTLY_AVAILABLE:
         return create_plotly_chart(data, chart_type, x_col, y_col, title, width, height, 
                                   font_size, title_font_size, axis_font_size)
@@ -284,7 +297,7 @@ def create_sample_chart():
         'x': range(10),
         'y': [10, 22, 30, 15, 44, 55, 40, 33, 22, 15]
     })
-    
+
     chart = create_chart(df, 'line', 'x', 'y', 'Sample Chart')
     return chart
 

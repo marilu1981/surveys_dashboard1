@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from backend_client import get_backend_client
-from chart_utils import create_altair_chart
+from chart_utils import create_chart
 from styles.card_style import apply_card_styles, create_metric_card
 from styles.global_styles import inject_global_styles
 
@@ -93,10 +93,10 @@ def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
 
     page_lookup = {page.label: page for page in navigation}
     selection = st.sidebar.radio(
-        "",
+        "Navigate",
         options=[page.label for page in navigation],
         index=[page.page_id for page in navigation].index(active_page_id),
-        label_visibility='visible',
+        label_visibility='collapsed',
     )
     if page_lookup[selection].page_id != active_page_id:
         st.session_state.current_page = page_lookup[selection].page_id
@@ -181,7 +181,7 @@ def show_home_page() -> None:
             st.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True)
             st.caption("Insightful, trusted intelligence for the South African commuter market.")
         with col2:
-            st.markdown("<div style='display:flex; justify-content:flex-end;'><img src='assets/sebenza_taxi_grey.png' width='220'></div>", unsafe_allow_html=True)
+            st.image('assets/sebenza_taxi_grey.png', width=220)
 
     client = get_backend_client()
     survey_options = _get_survey_options()
@@ -345,30 +345,46 @@ def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
 
     daily_counts = (
         filtered["ts"]
-        .dt.to_period("D")
+        .dt.floor("D")
         .value_counts()
         .sort_index()
         .rename_axis("date")
         .reset_index(name="responses")
     )
-    daily_counts["date"] = daily_counts["date"].dt.to_timestamp()
 
-    chart = create_altair_chart(
-        daily_counts,
-        chart_type="line",
-        x_col="date",
-        y_col="responses",
-        title="Daily response volume",
-        width=780,
-        height=320,
-        font_size=14,
-        title_font_size=18,
-        axis_font_size=12,
-    )
+    daily_counts["date"] = pd.to_datetime(daily_counts["date"], errors="coerce")
+    daily_counts = daily_counts.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+
+    if daily_counts.empty:
+        st.warning("No timestamped data available after aggregating responses.")
+        return
+
+    chart = None
+    try:
+        chart = create_chart(
+            daily_counts,
+            chart_type="line",
+            x_col="date",
+            y_col="responses",
+            title="Daily response volume",
+            width=780,
+            height=320,
+            font_size=14,
+            title_font_size=18,
+            axis_font_size=12,
+            prefer_plotly=True,
+        )
+    except Exception:
+        chart = None
+
     if chart is not None:
-        st.altair_chart(chart, use_container_width=True)
+        if hasattr(chart, "update_layout"):
+            st.plotly_chart(chart, use_container_width=True)
+        else:
+            st.altair_chart(chart, use_container_width=True)
     else:
-        st.dataframe(daily_counts, width='stretch')
+        fallback_data = daily_counts.set_index("date")[["responses"]]
+        st.line_chart(fallback_data)
 
 
 def render_question_summary(responses: pd.DataFrame) -> None:

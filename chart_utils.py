@@ -62,6 +62,9 @@ def create_altair_chart(data, chart_type='line', x_col='x', y_col='y', title='Ch
     
     if data.empty:
         st.warning("⚠️ No valid data remaining after filtering")
+    if len(data) < 2:
+        st.info("Not enough data points to render the chart; showing table instead.")
+        return None
         return None
     
     try:
@@ -292,8 +295,8 @@ if __name__ == "__main__":
     if chart is not None:
         # Check if it's a Plotly figure or Altair chart
         if hasattr(chart, 'update_layout'):  # Plotly figure
-            st.plotly_chart(chart, use_container_width=True)
+            st.plotly_chart(chart, width='stretch')
         else:  # Altair chart
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width='stretch')
     else:
         st.info("Neither Plotly nor Altair is available. Please install one of them.")

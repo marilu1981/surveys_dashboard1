@@ -5,7 +5,8 @@ import streamlit as st
 def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
     """Inject opinionated styles so every page feels consistent and polished."""
     base_px = float(base_font.replace("px", ""))
-    title_size = f"{int(base_px * 1.45 * scale)}px"
+    title_size = f"{int(base_px * 2 * scale)}px"
+    h1_size = f"{int(base_px * 1.45 * scale)}px"
     h3_size = f"{int(base_px * 1.25 * scale)}px"
     h4_size = f"{int(base_px * 1.12 * scale)}px"
     metric_value = f"{int(base_px * 1.7 * scale)}px"
@@ -16,6 +17,7 @@ def inject_global_styles(base_font: str = "15px", scale: float = 1.05) -> None:
       :root {{
         --base-font: {base_font};
         --title-font-size: {title_size};
+        --h1-font-size: {h1_size};
         --h3-font-size: {h3_size};
         --h4-font-size: {h4_size};
         --metric-value-size: {metric_value};

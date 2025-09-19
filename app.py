@@ -23,7 +23,7 @@ if DASHBOARD_DIR not in sys.path:
 
 st.set_page_config(
     page_title="Sebenza Surveys Dashboard",
-    page_icon="??",
+    page_icon="assets/sebenza_taxi_grey.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -64,7 +64,7 @@ def get_navigation() -> tuple[Page, ...]:
         Page("Funeral Cover", "funeral", lazy_page("dashboard_pages.funeral_cover", "main")),
         # Page("Cellphone", "cellphone", lazy_page("dashboard_pages.cellphone_survey", "main")),
         # Page("Convenience Store", "convenience", lazy_page("dashboard_pages.convenience_store", "main")),
-        Page("Advanced Filters", "advanced_filters", lazy_page("dashboard_pages.advanced_filters", "main")),
+        # Page("Advanced Filters", "advanced_filters", lazy_page("dashboard_pages.advanced_filters", "main")),
         # Page("Comprehensive Analytics", "comprehensive", lazy_page("dashboard_pages.comprehensive_analytics", "main")),
     )
 
@@ -88,11 +88,12 @@ def record_data_usage(page: str, endpoint: str, records: int) -> None:
 
 
 def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
+    
     st.sidebar.title("Menu")
 
     page_lookup = {page.label: page for page in navigation}
     selection = st.sidebar.radio(
-        "Navigate",
+        "",
         options=[page.label for page in navigation],
         index=[page.page_id for page in navigation].index(active_page_id),
         label_visibility='visible',
@@ -103,6 +104,7 @@ def render_sidebar(active_page_id: str, navigation: tuple[Page, ...]) -> None:
 
     render_backend_status()
     render_data_usage_sidebar()
+    
 
 
 def render_backend_status() -> None:
@@ -152,7 +154,7 @@ def _get_survey_options() -> list[str]:
             return sorted(index["survey"].dropna().unique().tolist())
         if "title" in index.columns:
             return sorted(index["title"].dropna().unique().tolist())
-    summary = _client.get_survey_summary()
+    summary = client.get_survey_summary()
     if isinstance(summary, dict):
         surveys = summary.get("surveys", [])
         if isinstance(surveys, list):
@@ -170,19 +172,26 @@ def _get_survey_options() -> list[str]:
 
 
 def show_home_page() -> None:
-    st.title("Sebenza Surveys Dashboard")
-    st.caption("Insightful, trusted intelligence for the South African commuter market.")
     apply_card_styles()
 
+    with st.container():
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown("<h1 style='font-size: 48px; margin-bottom: 0.25rem;'>Sebenza Surveys Dashboard</h1>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True)
+            st.caption("Insightful, trusted intelligence for the South African commuter market.")
+        with col2:
+            st.markdown("<div style='display:flex; justify-content:flex-end;'><img src='assets/sebenza_taxi_grey.png' width='220'></div>", unsafe_allow_html=True)
+
     client = get_backend_client()
-    # survey_options = _get_survey_options()
-    # default_survey = survey_options[0] if survey_options else "SB055_Profile_Survey1"
-    # selected_survey = st.selectbox(
-    #     "Select survey to analyse",
-    #     options=survey_options or [default_survey],
-    #     index=0,
-    # )
-    selected_survey = "[default_survey]"
+    survey_options = _get_survey_options()
+    default_survey = survey_options[0] if survey_options else "SB055_Profile_Survey1"
+
+    selected_survey = st.selectbox(
+        "Select survey to analyse",
+        options=survey_options or [default_survey],
+        index=0,
+    )
 
     metrics, responses = load_metrics_and_responses(client, selected_survey)
     render_metrics(metrics)
@@ -199,7 +208,7 @@ def show_home_page() -> None:
 def load_metrics_and_responses(_client, survey: str) -> tuple[dict[str, str], pd.DataFrame]:
     fallback = {
         "total_responses": "0",
-        "unique_respondents": "0",
+        # "unique_respondents": "0",
         "last_updated": "Unknown",
     }
     if not _client:
@@ -208,7 +217,8 @@ def load_metrics_and_responses(_client, survey: str) -> tuple[dict[str, str], pd
     summary = _client.get_survey_summary()
     if isinstance(summary, dict):
         total = summary.get("total_responses")
-        unique = summary.get("unique_respondents")
+        # unique = summary.get("unique_respondents")
+        unique = None
         updated = summary.get("last_refreshed") or summary.get("generated_at")
     else:
         total = unique = updated = None
@@ -224,11 +234,12 @@ def load_metrics_and_responses(_client, survey: str) -> tuple[dict[str, str], pd
     if not responses.empty:
         if total is None:
             total = len(responses)
-        if (unique is None or unique == 0) and "pid" in responses.columns:
-            unique = responses["pid"].dropna().nunique()
+        # if (unique is None or unique == 0) and "pid" in responses.columns:
+        #     unique = responses["pid"].dropna().nunique()
     metrics = {
         "total_responses": _format_number(total) if total is not None else "0",
-        "unique_respondents": _format_number(unique) if unique is not None else "0",
+        # "unique_respondents": _format_number(unique) if unique is not None else "0",
+        # "unique_respondents": _format_number(unique) if unique is not None else "0",
         "last_updated": str(updated or pd.Timestamp.utcnow().strftime("%Y-%m-%d")),
     }
 
@@ -248,37 +259,23 @@ def _format_number(value) -> str:
     return str(value)
 
 
-def render_metrics(metrics: dict[str, str]) -> None:
+def render_metrics(metrics: dict[str, str] | None) -> None:
+    metrics = metrics or {}
+    total = str(metrics.get("total_responses", "0"))
+    last_updated = str(metrics.get("last_updated", "Unknown"))
+
     st.subheader("Key metrics")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.markdown(
-            create_metric_card(
-                "Total responses",
-                metrics["total_responses"],
-                "Rows available for analysis",
-            ),
+            create_metric_card("Total responses", total, "Rows available for analysis"),
             unsafe_allow_html=True,
         )
     with col2:
         st.markdown(
-            create_metric_card(
-                "Unique respondents",
-                metrics["unique_respondents"],
-                "Distinct participant IDs",
-            ),
+            create_metric_card("Last refreshed", last_updated, "Source: Sebenza data services"),
             unsafe_allow_html=True,
         )
-    with col3:
-        st.markdown(
-            create_metric_card(
-                "Last refreshed",
-                metrics["last_updated"],
-                "Source: Sebenza data",
-            ),
-            unsafe_allow_html=True,
-        )
-
 
 def render_feature_highlights() -> None:
     st.subheader("What you can explore")
@@ -328,13 +325,17 @@ def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
         )
         start = end = selected_date
     else:
-        start, end = st.date_input(
+        selection = st.date_input(
             "Filter by date range",
             value=(min_date, max_date),
             min_value=min_date,
             max_value=max_date,
             key=f"range_{survey}",
         )
+        if isinstance(selection, tuple) and len(selection) == 2:
+            start, end = selection
+        else:
+            start = end = selection
     mask = (responses["ts"].dt.date >= start) & (responses["ts"].dt.date <= end)
     filtered = responses.loc[mask]
 
@@ -367,7 +368,7 @@ def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
     if chart is not None:
         st.altair_chart(chart, use_container_width=True)
     else:
-        st.dataframe(daily_counts, use_container_width=True)
+        st.dataframe(daily_counts, width='stretch')
 
 
 def render_question_summary(responses: pd.DataFrame) -> None:
@@ -381,7 +382,7 @@ def render_question_summary(responses: pd.DataFrame) -> None:
     if question_counts.empty:
         return
 
-    st.dataframe(question_counts, use_container_width=True)
+    st.dataframe(question_counts, width='stretch')
 
 
 def main() -> None:

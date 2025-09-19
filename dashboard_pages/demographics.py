@@ -604,7 +604,7 @@ def main():
                 )
                 
                 if altair_chart is not None:
-                    st.altair_chart(altair_chart, use_container_width=True)
+                    st.altair_chart(altair_chart, width='stretch')
                 else:
                     # Fallback to a simple table if Altair is not available
                     st.info("Daily Response Counts (Altair not available)")

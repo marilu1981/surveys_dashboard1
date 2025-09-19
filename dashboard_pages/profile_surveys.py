@@ -727,32 +727,23 @@ def main():
                 
                 # Money source data table and Side Hustles chart
                 st.markdown("##### Money Source Breakdown")
-                
-                # Create two-column layout for table and side hustles chart
                 col_table, col_side_hustles = st.columns([2, 1])
-                
+
                 with col_table:
                     money_data = pd.DataFrame({
                         "Money Source": money_dist.index,
                         "Count": [f"{count:,}" for count in money_dist.values],
                         "Percentage": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
                     })
-                    
                     st.table(money_data)
-                
+
                 with col_side_hustles:
-                    # Side Hustles Analysis
                     st.markdown("##### Side Hustles Distribution")
-                    
-                    # Get side hustles data, filtering out NaN values
                     side_hustles_data = filtered_money['side_hustles'].dropna()
                     side_hustles_count = len(side_hustles_data)
-                    
+
                     if side_hustles_count > 0:
-                        # Get side hustles distribution
                         side_hustles_dist = side_hustles_data.value_counts()
-                        
-                        # Create pie chart for side hustles
                         fig_side_hustles = px.pie(
                             values=side_hustles_dist.values,
                             names=side_hustles_dist.index,

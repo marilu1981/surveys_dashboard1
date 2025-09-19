@@ -146,54 +146,65 @@ def get_filtered_data(filters: Dict[str, Any]) -> Optional[pd.DataFrame]:
     client = get_backend_client()
     if not client:
         return None
-    
+
     try:
-        # Ensure survey parameter is present
         if 'survey' not in filters:
-            st.warning("⚠️ Survey parameter is required for filtered responses")
+            st.warning("Survey parameter is required for filtered responses")
             return None
-            
-        # Use the get_responses method with filters
+
         params = {k: v for k, v in filters.items() if v not in (None, "")}
         survey_id = params.pop('survey', None)
         if not survey_id:
             st.warning('A survey must be selected before filtering.')
             return None
+
         data = client.get_responses(survey=survey_id, **params)
+        if isinstance(data, pd.DataFrame):
+            return data
+        if isinstance(data, dict) and 'data' in data:
+            return pd.DataFrame(data['data'])
+        return None
     except Exception as e:
         st.error(f"Error fetching filtered data: {str(e)}")
         return None
 
-def render_filter_summary(filters: Dict[str, Any], data: Optional[Dict[str, Any]]):
+def render_filter_summary(filters: Dict[str, Any], data: Optional[pd.DataFrame]):
     """Render a summary of applied filters and data"""
     if not filters:
         st.info("No filters applied - showing all data")
         return
-    
-    st.info(f"🔍 **Filters Applied:** {len(filters)} filter(s)")
-    
-    # Show filter details
-    filter_details = []
-    for key, value in filters.items():
-        filter_details.append(f"**{key.replace('_', ' ').title()}:** {value}")
-    
-    st.markdown(" | ".join(filter_details))
-    
-    # Show data summary
-    if data and 'pagination' in data:
-        pagination = data['pagination']
-        st.markdown(f"**Results:** {len(data.get('data', []))} of {pagination.get('total', 0)} responses")
-        
-        if pagination.get('has_more', False):
-            st.warning("⚠️ Results are limited by the data limit filter. Increase the limit to see more data.")
 
+    st.info(f"dY\"? **Filters Applied:** {len(filters)} filter(s)")
+    details = [f"**{key.replace('_', ' ').title()}:** {value}" for key, value in filters.items()]
+    st.markdown(" | \u200c".join(details))
+
+    if data is not None:
+        st.markdown(f"**Results:** {len(data):,} responses returned")
 
 def main():
+    st.title("Advanced Filters")
+    st.markdown("Use the controls in the sidebar to refine a survey and preview matching responses.")
+
     filters = render_advanced_filters()
-    if filters:
-        st.sidebar.success("Filters applied. Please navigate to the desired dashboard.")
+    data: Optional[pd.DataFrame] = None
+    if filters and 'survey' in filters:
+        data = get_filtered_data(filters)
+        if data is not None and not data.empty:
+            render_filter_summary(filters, data)
+
+            st.markdown("### Preview")
+            st.dataframe(data.head(100), width='stretch')
+
+            st.markdown("---")
+            csv = data.to_csv(index=False)
+            st.download_button("Download filtered data", csv, file_name="advanced_filters.csv")
+        else:
+            st.info("No responses matched the selected filters yet.")
+    else:
+        st.info("Select at least a survey in the sidebar to begin filtering.")
 
 
 if __name__ == "__main__":
     main()
+
 

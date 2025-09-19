@@ -190,10 +190,9 @@ def render_precomputed_demographics(demographics_data):
         # "Which of these describes you?" question
         describes_question = response_distributions.get("Which of these describes you?", {})
         if describes_question:
-            st.markdown("### ❓ Which of these describes you?")
             describes_data = pd.DataFrame(list(describes_question.items()), columns=['Response', 'Count'])
             fig = px.pie(describes_data, values='Count', names='Response', 
-                        title="Which of these describes you?")
+                        title="Commuter Type")
             st.plotly_chart(fig, width='stretch')
     
     # SEM Score Analysis
@@ -223,6 +222,37 @@ def render_precomputed_demographics(demographics_data):
                 yaxis_title="Mean SEM Score"
             )
             st.plotly_chart(fig, width='stretch')
+        
+        # SEM Groups Count and Percentage
+        if "count" in by_segment:
+            st.markdown("#### SEM Groups Count and Percentage")
+            sem_count_data = []
+            total_count = sum(by_segment["count"].values())
+            
+            for segment, count in by_segment["count"].items():
+                percentage = (count / total_count) * 100 if total_count > 0 else 0
+                sem_count_data.append({
+                    'SEM Segment': segment,
+                    'Count': count,
+                    'Percentage': percentage
+                })
+            
+            sem_count_df = pd.DataFrame(sem_count_data)
+            # Sort by segment number for better visualization
+            sem_count_df['Segment_Num'] = sem_count_df['SEM Segment'].str.extract(r'(\d+)').astype(int)
+            sem_count_df = sem_count_df.sort_values('Segment_Num')
+            
+            # Create bar chart with count and percentage
+            fig_count = px.bar(sem_count_df, x='SEM Segment', y='Count', 
+                             title="SEM Groups Count and Percentage",
+                             text=sem_count_df['Percentage'].round(1).astype(str) + '%')
+            fig_count.update_layout(
+                xaxis_title="SEM Segment",
+                yaxis_title="Count",
+                showlegend=False
+            )
+            fig_count.update_traces(textposition='outside')
+            st.plotly_chart(fig_count, width='stretch')
     
     
 

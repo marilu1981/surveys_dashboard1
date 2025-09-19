@@ -98,68 +98,101 @@ def render_precomputed_demographics(demographics_data):
     # Individual Demographics Charts
     st.markdown("### 📊 Commuter Demographics")
     
-    # Create a 2x2 grid for the charts
+    # Row 1: Gender and Age
     col1, col2 = st.columns(2)
     
     with col1:
         # Gender Pie Chart
         gender_data = overall_demographics.get("gender", {})
         if gender_data:
-            st.markdown("#### Gender Distribution")
             gender_df = pd.DataFrame(list(gender_data.items()), columns=['Gender', 'Count'])
-            fig_gender = px.pie(gender_df, values='Count', names='Gender', title="Gender Distribution")
+            fig_gender = px.pie(gender_df, values='Count', names='Gender', title="Gender")
             st.plotly_chart(fig_gender, width='stretch')
-        
+    
+    with col2:
         # Age Bar Chart
         age_data = overall_demographics.get("age_group", {})
         if age_data:
-            st.markdown("#### Age Group Distribution")
             age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
-            fig_age = px.bar(age_df, x='Age Group', y='Count', title="Age Group Distribution")
+            fig_age = px.bar(age_df, x='Age Group', y='Count', title="Age")
             fig_age.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_age, width='stretch')
     
-    with col2:
-        # Income Bar Chart
-        income_data = overall_demographics.get("salary", {})
-        if income_data:
-            st.markdown("#### Income Distribution")
-            income_df = pd.DataFrame(list(income_data.items()), columns=['Income Range', 'Count'])
-            fig_income = px.bar(income_df, x='Income Range', y='Count', title="Income Distribution")
-            fig_income.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_income, width='stretch')
-        
+    # Row 2: Employment and Salary Bands
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        # Employment Bar Chart
+        employment_data = overall_demographics.get("employment", {})
+        if employment_data:
+            employment_df = pd.DataFrame(list(employment_data.items()), columns=['Employment', 'Count'])
+            fig_employment = px.bar(employment_df, x='Employment', y='Count', title="Employment")
+            fig_employment.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_employment, width='stretch')
+    
+    with col4:
+        # Salary Bands Bar Chart
+        salary_data = overall_demographics.get("salary", {})
+        if salary_data:
+            salary_df = pd.DataFrame(list(salary_data.items()), columns=['Salary Band', 'Count'])
+            fig_salary = px.bar(salary_df, x='Salary Band', y='Count', title="Salary Bands")
+            fig_salary.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_salary, width='stretch')
+    
+    # Row 3: Region and SEM
+    col5, col6 = st.columns(2)
+    
+    with col5:
+        # Region Bar Chart
+        region_data = overall_demographics.get("region", {})
+        if region_data:
+            region_df = pd.DataFrame(list(region_data.items()), columns=['Region', 'Count'])
+            fig_region = px.bar(region_df, x='Region', y='Count', title="Region")
+            fig_region.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_region, width='stretch')
+    
+    with col6:
+        # SEM Bar Chart
+        sem_data = overall_demographics.get("sem", {})
+        if sem_data:
+            sem_df = pd.DataFrame(list(sem_data.items()), columns=['SEM', 'Count'])
+            fig_sem = px.bar(sem_df, x='SEM', y='Count', title="SEM")
+            fig_sem.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_sem, width='stretch')
+    
+    # Row 4: Main Source of Income and Side Hustles
+    col7, col8 = st.columns(2)
+    
+    with col7:
+        # Main Source of Income from question analysis
+        question_analysis = demographics_data.get("question_analysis", {})
+        response_distributions = question_analysis.get("response_distributions", {})
+        money_source_question = response_distributions.get("What is your main source of money?", {})
+        if money_source_question:
+            money_source_df = pd.DataFrame(list(money_source_question.items()), columns=['Source', 'Count'])
+            fig_money = px.pie(money_source_df, values='Count', names='Source', title="Main Source of Income")
+            st.plotly_chart(fig_money, width='stretch')
+    
+    with col8:
         # Side Hustles Bar Chart
         if side_hustles:
-            st.markdown("#### Side Hustles Distribution")
             side_hustles_df = pd.DataFrame(list(side_hustles.items()), columns=['Side Hustle Type', 'Count'])
-            fig_hustles = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles Distribution")
+            fig_hustles = px.bar(side_hustles_df, x='Side Hustle Type', y='Count', title="Side Hustles")
             fig_hustles.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_hustles, width='stretch')
         
-    # Question Analysis - Response Distributions
+    # Additional Question Analysis
     question_analysis = demographics_data.get("question_analysis", {})
     response_distributions = question_analysis.get("response_distributions", {})
     
     if response_distributions:
-        st.markdown("### ❓ Question Analysis - Response Distributions")
-        
         # "Which of these describes you?" question
         describes_question = response_distributions.get("Which of these describes you?", {})
         if describes_question:
-            st.markdown("#### Which of these describes you?")
+            st.markdown("### ❓ Which of these describes you?")
             describes_data = pd.DataFrame(list(describes_question.items()), columns=['Response', 'Count'])
             fig = px.pie(describes_data, values='Count', names='Response', 
                         title="Which of these describes you?")
-            st.plotly_chart(fig, width='stretch')
-        
-        # "What is your main source of money?" question
-        money_source_question = response_distributions.get("What is your main source of money?", {})
-        if money_source_question:
-            st.markdown("#### What is your main source of money?")
-            money_source_data = pd.DataFrame(list(money_source_question.items()), columns=['Response', 'Count'])
-            fig = px.pie(money_source_data, values='Count', names='Response',
-                        title="What is your main source of money?")
             st.plotly_chart(fig, width='stretch')
     
     # SEM Score Analysis

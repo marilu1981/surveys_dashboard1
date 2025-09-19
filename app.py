@@ -252,8 +252,8 @@ def show_home_page():
                     {"title": "Unique Users", "value": f"{unique_users:,}"},
                 ]
             else:
-                # Fallback to responses endpoint with limit
-                responses = client.get_responses(limit=100)
+                # Fallback to responses endpoint with limit and required survey parameter
+                responses = client.get_responses(survey="SB055_Profile_Survey1", limit=100)
                 if not responses.empty:
                     # Calculate real metrics
                     total_responses = len(responses)

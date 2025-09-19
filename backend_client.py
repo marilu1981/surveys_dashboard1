@@ -464,6 +464,38 @@ class BackendClient:
         except Exception as e:
             st.error(f"Error parsing survey summary: {str(e)}")
             return {}
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def get_legacy_survey_data(_self, limit: int = 1000, **filters) -> pd.DataFrame:
+        """Get legacy survey data with filtering capabilities"""
+        try:
+            # Build query parameters
+            params = {'limit': limit}
+            
+            # Add filters if provided
+            for key, value in filters.items():
+                if value is not None and value != '':
+                    params[key] = value
+            
+            response = _self.session.get(f"{_self.base_url}/api/legacy-survey-data", params=params)
+            response.raise_for_status()
+            
+            # Parse JSON response
+            data = response.json()
+            
+            if isinstance(data, list):
+                return pd.DataFrame(data)
+            elif isinstance(data, dict) and 'data' in data:
+                return pd.DataFrame(data['data'])
+            else:
+                return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error fetching legacy survey data: {str(e)}")
+            return pd.DataFrame()
+        except Exception as e:
+            st.error(f"Error parsing legacy survey data: {str(e)}")
+            return pd.DataFrame()
 
 # Global backend client
 @st.cache_resource

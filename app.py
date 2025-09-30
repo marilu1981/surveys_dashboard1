@@ -23,7 +23,7 @@ if DASHBOARD_DIR not in sys.path:
 
 st.set_page_config(
     page_title="Sebenza Surveys Dashboard",
-    page_icon="assets/sebenza_taxi_grey.png",
+    page_icon="🚐",  # Use emoji instead of file to avoid deployment issues
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -181,7 +181,16 @@ def show_home_page() -> None:
             st.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True)
             st.caption("Insightful, trusted intelligence for the South African commuter market.")
         with col2:
-            st.image('assets/sebenza_taxi_grey.png', width=220)
+            # Try to load image, fallback to text if not available
+            try:
+                if os.path.exists('assets/sebenza_taxi_grey.png'):
+                    st.image('assets/sebenza_taxi_grey.png', width=220)
+                else:
+                    st.markdown("<div style='text-align: center; padding: 60px; font-size: 48px;'>🚐</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='text-align: center; font-weight: bold; color: #666;'>Sebenza</div>", unsafe_allow_html=True)
+            except Exception:
+                st.markdown("<div style='text-align: center; padding: 60px; font-size: 48px;'>🚐</div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align: center; font-weight: bold; color: #666;'>Sebenza</div>", unsafe_allow_html=True)
 
     client = get_backend_client()
     survey_options = _get_survey_options()

@@ -319,27 +319,52 @@ class BackendClient:
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
     def get_responses_parquet(self) -> pd.DataFrame:
         """Get responses data from the staging Parquet file"""
-        try:
-            # Use staging URL to fetch the Parquet file directly
-            staging_url = "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet"
-            
-            # Make direct request to staging server
-            headers = {"Accept": "application/octet-stream"}
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
-            
-            response = requests.get(staging_url, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
-            
-            # Parse the Parquet file
-            parquet_data = BytesIO(response.content)
-            df = pd.read_parquet(parquet_data, engine='pyarrow')
-            
-            return df
-            
-        except Exception as exc:
-            st.error(f"Failed to fetch Parquet file from staging: {exc}")
-            return pd.DataFrame()
+        # Try multiple possible URLs for the Parquet file
+        possible_urls = [
+            "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet",
+            f"{self.base_url}/processed/responses.parquet",  # Try main server
+            f"{self.base_url}/api/responses.parquet",  # Try as API endpoint
+        ]
+        
+        for url in possible_urls:
+            try:
+                st.info(f"Attempting to fetch Parquet data from: {url}")
+                
+                # Make direct request with SSL verification disabled for staging
+                headers = {"Accept": "application/octet-stream"}
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
+                
+                # Disable SSL verification for staging environments
+                verify_ssl = not ("staging" in url.lower())
+                
+                response = requests.get(
+                    url, 
+                    headers=headers, 
+                    timeout=self.timeout,
+                    verify=verify_ssl
+                )
+                response.raise_for_status()
+                
+                # Check if response is actually Parquet data
+                content = response.content
+                if len(content) < 100:  # Too small to be a Parquet file
+                    continue
+                    
+                # Parse the Parquet file
+                parquet_data = BytesIO(content)
+                df = pd.read_parquet(parquet_data, engine='pyarrow')
+                
+                if not df.empty:
+                    st.success(f"✅ Successfully loaded {len(df):,} records from Parquet file")
+                    return df
+                    
+            except Exception as exc:
+                st.warning(f"Failed to fetch from {url}: {str(exc)[:100]}...")
+                continue
+        
+        st.warning("❌ Could not fetch Parquet file from any source. Falling back to API.")
+        return pd.DataFrame()
 
     def test_connection(self) -> bool:
         try:

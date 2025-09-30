@@ -29,27 +29,44 @@ def get_real_data():
         return None, None, None, None
 
     try:
-        # Start with a reasonable sample size for initial load
-        with st.spinner("Loading profile survey data from Parquet file..."):
-            # Try to load from staging Parquet file first (most efficient)
-            responses = client.get_responses_parquet()
+        # Start with efficient data loading strategy
+        with st.spinner("Loading profile survey data..."):
+            responses = pd.DataFrame()
             
+            # Strategy 1: Try Parquet file (most efficient, complete dataset)
+            try:
+                responses = client.get_responses_parquet()
+                if not responses.empty:
+                    st.success("✅ Loaded complete dataset from Parquet file")
+            except Exception as e:
+                st.warning(f"Parquet loading failed: {str(e)[:50]}...")
+            
+            # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:
-                # Fallback to JSON API if Parquet fails
-                st.info("Parquet file unavailable, falling back to API...")
-                responses = client.get_responses(
-                    survey="SB055_Profile_Survey1", 
-                    limit=5000,  # Reduced from 30K for much faster initial load
-                    format="json"
-                )
-                
-                if responses.empty:
-                    # Last fallback to individual survey endpoint
-                    responses = client.get_individual_survey(
-                        "SB055_Profile_Survey1", 
-                        limit=5000, 
+                st.info("📡 Loading from API endpoint...")
+                try:
+                    responses = client.get_responses(
+                        survey="SB055_Profile_Survey1", 
+                        limit=5000,  # Reasonable sample size
                         format="json"
                     )
+                    if not responses.empty:
+                        st.info("✅ Loaded sample dataset from API")
+                except Exception as e:
+                    st.warning(f"API loading failed: {str(e)[:50]}...")
+                
+                # Strategy 3: Last fallback to individual survey endpoint
+                if responses.empty:
+                    try:
+                        responses = client.get_individual_survey(
+                            "SB055_Profile_Survey1", 
+                            limit=5000, 
+                            format="json"
+                        )
+                        if not responses.empty:
+                            st.info("✅ Loaded data from individual survey endpoint")
+                    except Exception as e:
+                        st.error(f"All data loading methods failed: {str(e)[:50]}...")
         
         if responses.empty:
             st.warning("Unable to retrieve profile survey responses from the backend")
@@ -142,14 +159,21 @@ def main():
         # Show data summary and controls
         col1, col2 = st.columns([3, 1])
         with col1:
-            # Check if we loaded from Parquet or API fallback
-            data_source = "Parquet file" if len(responses) > 10000 else "API (limited)"
-            st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
-            
+            # Determine data source based on dataset size and provide appropriate messaging
             if len(responses) > 50000:
-                st.info("📊 Using complete dataset from Parquet file for comprehensive analysis")
-            elif len(responses) < 10000:
-                st.warning("⚠️ Using limited dataset from API. For complete analysis, ensure Parquet file is accessible.")
+                data_source = "Complete Parquet dataset"
+                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
+                st.info("📊 Using complete dataset for comprehensive analysis")
+            elif len(responses) > 10000:
+                data_source = "Large dataset"  
+                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
+            elif len(responses) > 1000:
+                data_source = "API sample"
+                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
+                st.warning("⚠️ Using sample dataset. Results may not represent complete population.")
+            else:
+                data_source = "Limited data"
+                st.warning(f"⚠️ Only {len(responses):,} responses loaded. Data quality may be limited.")
         
         with col2:
             if st.button("🔄 Refresh", help="Clear cache and reload fresh data from Parquet file"):

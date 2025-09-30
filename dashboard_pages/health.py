@@ -22,7 +22,7 @@ def load_health_data(full: bool = True):
         if client:
             if full:
                 # Use the individual survey endpoint with limit for cost efficiency
-                health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000)
+                health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000, format="parquet")
             else:
                 # Use the health surveys method with limit for sample data
                 health_data = client.get_health_surveys(limit=100)

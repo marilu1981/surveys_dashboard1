@@ -20,193 +20,68 @@ from card_style import apply_card_styles
 
 # No need for CSS to hide pages since they're moved out of the pages/ directory
 
+@st.cache_data(ttl=600, show_spinner=True)  # Cache for 10 minutes
 def get_real_data():
-    """Get real data from your backend API"""
+    """Get real data from your backend API - optimized for performance"""
     client = get_backend_client()
     if not client:
-        st.warning("?s??,? Backend connection not available - using sample data")
+        st.warning("Backend connection not available - using sample data")
         return None, None, None, None
 
-    PAGE_SIZE = 1000
-    MAX_RECORDS = 30000
-
     try:
-        frames: list[pd.DataFrame] = []
-        total_loaded = 0
-        required_questions = {
-            "Which of these shops do you visit most often (Select all that apply)",
-            "How much did you pay for this trip?",
-            "What is your main source of money?",
-        }
-        seen_questions: set[str] = set()
-
-        for offset in range(0, MAX_RECORDS, PAGE_SIZE):
-            remaining = MAX_RECORDS - offset
-            limit = PAGE_SIZE if remaining >= PAGE_SIZE else remaining
-            if limit <= 0:
-                break
-            try:
-                page = client.get_responses(
-                    survey="SB055_Profile_Survey1",
-                    limit=limit,
-                    offset=offset,
+        # Start with a reasonable sample size for initial load
+        with st.spinner("Loading profile survey data..."):
+            # Load data in efficient single call with Parquet format
+            responses = client.get_responses(
+                survey="SB055_Profile_Survey1", 
+                limit=5000,  # Reduced from 30K for much faster initial load
+                format="parquet"
+            )
+            
+            if responses.empty:
+                # Fallback to individual survey endpoint
+                responses = client.get_individual_survey(
+                    "SB055_Profile_Survey1", 
+                    limit=5000, 
+                    format="parquet"
                 )
-            except Exception:
-                continue
-
-            if not isinstance(page, pd.DataFrame) or page.empty:
-                if offset == 0:
-                    break
-                if frames:
-                    break
-                continue
-
-            frames.append(page)
-            total_loaded += len(page)
-
-            if "q" in page.columns:
-                seen_questions.update(str(q) for q in page["q"].dropna().unique())
-
-            if required_questions.issubset(seen_questions) and len(page) < PAGE_SIZE:
-                break
-
-            if len(page) < PAGE_SIZE:
-                break
-
-        responses = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
+        
         if responses.empty:
-            st.warning('dY"S Unable to retrieve profile survey responses from the backend')
+            st.warning("Unable to retrieve profile survey responses from the backend")
             return None, None, None, None
 
-        if "q" in responses.columns and "SURVEY_QUESTION" not in responses.columns:
-            responses["SURVEY_QUESTION"] = responses["q"]
-        if "resp" in responses.columns and "RESPONSE" not in responses.columns:
-            responses["RESPONSE"] = responses["resp"]
-        if "pid" in responses.columns and "PROFILE_ID" not in responses.columns:
-            responses["PROFILE_ID"] = responses["pid"]
-        if "ts" in responses.columns:
-            responses["ts"] = pd.to_datetime(responses["ts"], errors="coerce")
-            if "SURVEY_DATE" not in responses.columns:
-                responses["SURVEY_DATE"] = responses["ts"].dt.date
-        elif "SURVEY_DATE" in responses.columns:
-            responses["ts"] = pd.to_datetime(responses["SURVEY_DATE"], errors="coerce")
-
-        client.get_survey_summary()
-        survey_ids = ["SB055_Profile_Survey1"]
-
-        if "SURVEY_QUESTION" in responses.columns:
-            unique_questions = responses["SURVEY_QUESTION"].dropna().unique()
-            questions_df = pd.DataFrame({"question": unique_questions})
-        elif "q" in responses.columns:
-            unique_questions = responses["q"].dropna().unique()
-            questions_df = pd.DataFrame({"question": unique_questions})
-        else:
-            questions_df = pd.DataFrame()
-
-        return survey_ids, questions_df, questions_df, responses
-
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"Error getting data from backend: {exc}")
-        return None, None, None, None
-
-    try:
-        primary = client.get_responses(survey="SB055_Profile_Survey1", limit=30000)
-        frames: list[pd.DataFrame] = []
-        if isinstance(primary, pd.DataFrame) and not primary.empty:
-            frames.append(primary)
-
-        required_questions = {
-            "Which of these shops do you visit most often (Select all that apply)",
-            "How much did you pay for this trip?",
-            "What is your main source of money?",
+        # Efficient column mapping without duplicate checks
+        column_mapping = {
+            "q": "SURVEY_QUESTION",
+            "resp": "RESPONSE", 
+            "pid": "PROFILE_ID"
         }
-        seen_questions = set()
-        if isinstance(primary, pd.DataFrame) and "q" in primary.columns:
-            seen_questions.update(str(q) for q in primary["q"].dropna().unique())
+        
+        for old_col, new_col in column_mapping.items():
+            if old_col in responses.columns and new_col not in responses.columns:
+                responses[new_col] = responses[old_col]
 
-        if required_questions - seen_questions:
-            for offset in (1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,20000,30000):
-                try:
-                    chunk = client.get_responses(survey="SB055_Profile_Survey1", limit=30000, offset=offset)
-                except Exception:
-                    continue
-                if isinstance(chunk, pd.DataFrame) and not chunk.empty:
-                    frames.append(chunk)
-                    if "q" in chunk.columns:
-                        seen_questions.update(str(q) for q in chunk["q"].dropna().unique())
-                    if required_questions.issubset(seen_questions):
-                        break
-
-        responses = pd.concat(frames, ignore_index=True).drop_duplicates() if frames else pd.DataFrame()
-        if responses.empty:
-            st.warning("dY\"S Unable to retrieve profile survey responses from the backend")
-            return None, None, None, None
-
-        if "q" in responses.columns and "SURVEY_QUESTION" not in responses.columns:
-            responses["SURVEY_QUESTION"] = responses["q"]
-        if "resp" in responses.columns and "RESPONSE" not in responses.columns:
-            responses["RESPONSE"] = responses["resp"]
-        if "pid" in responses.columns and "PROFILE_ID" not in responses.columns:
-            responses["PROFILE_ID"] = responses["pid"]
+        # Optimize datetime conversion
         if "ts" in responses.columns:
             responses["ts"] = pd.to_datetime(responses["ts"], errors="coerce")
             if "SURVEY_DATE" not in responses.columns:
                 responses["SURVEY_DATE"] = responses["ts"].dt.date
-        elif "SURVEY_DATE" in responses.columns:
-            responses["ts"] = pd.to_datetime(responses["SURVEY_DATE"], errors="coerce")
 
-        summary = client.get_survey_summary()
-        survey_ids = ["SB055_Profile_Survey1"]
-
+        # Create questions DataFrame efficiently
         if "SURVEY_QUESTION" in responses.columns:
             unique_questions = responses["SURVEY_QUESTION"].dropna().unique()
-            questions_df = pd.DataFrame({"question": unique_questions})
         elif "q" in responses.columns:
-            unique_questions = responses["q"].dropna().unique()
-            questions_df = pd.DataFrame({"question": unique_questions})
+            unique_questions = responses["q"].dropna().unique() 
         else:
-            questions_df = pd.DataFrame()
+            unique_questions = []
+            
+        questions_df = pd.DataFrame({"question": unique_questions})
+        survey_ids = ["SB055_Profile_Survey1"]
 
         return survey_ids, questions_df, questions_df, responses
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         st.error(f"Error getting data from backend: {exc}")
-        return None, None, None, None
-    
-    try:
-        # Get responses data from your backend using optimized endpoint
-        # Try to get Profile Survey data first (most comprehensive) - use individual survey endpoint with limit for cost efficiency
-        responses = client.get_individual_survey("SB055_Profile_Survey1", limit=30000)
-        
-        
-        if responses.empty:
-            # Fallback to survey index if responses endpoint fails
-            st.info("📊 Responses endpoint unavailable, trying survey index...")
-            survey_index = client.get_surveys_index()
-            if not survey_index.empty:
-                # Create a minimal responses-like structure from survey index
-                responses = survey_index
-            else:
-                return None, None, None, None
-        
-        # Get survey summary for analytics
-        summary = client.get_survey_summary()
-        
-        # Create proper analytics from the responses data
-        survey_ids = ['Backend Data']  # Placeholder
-        
-        # For survey questions analysis, we'll use the responses data directly
-        # Extract unique questions from the responses
-        if 'q' in responses.columns:
-            unique_questions = responses['q'].dropna().unique()
-            questions_df = pd.DataFrame({'question': unique_questions})
-        else:
-            questions_df = pd.DataFrame()
-        
-        return survey_ids, questions_df, questions_df, responses
-        
-    except Exception as e:
-        st.error(f"Error getting data from backend: {str(e)}")
         return None, None, None, None
 
 def main():
@@ -234,10 +109,68 @@ def main():
         if st.sidebar.button("Survey Questions", key="survey_questions_survey"):
             st.rerun()
     
-    # Get data
-    survey_ids, shop_questions, range_questions, responses = get_real_data()
+    # Initialize session state for data persistence
+    if 'profile_survey_data' not in st.session_state:
+        st.session_state.profile_survey_data = None
+        st.session_state.profile_survey_loaded = False
+    
+    # Get data (cached and persistent)
+    if not st.session_state.profile_survey_loaded:
+        with st.spinner("Loading profile survey data..."):
+            survey_ids, shop_questions, range_questions, responses = get_real_data()
+            st.session_state.profile_survey_data = {
+                'survey_ids': survey_ids,
+                'shop_questions': shop_questions, 
+                'range_questions': range_questions,
+                'responses': responses
+            }
+            st.session_state.profile_survey_loaded = True
+    else:
+        # Use cached data
+        data = st.session_state.profile_survey_data
+        survey_ids = data['survey_ids']
+        shop_questions = data['shop_questions']
+        range_questions = data['range_questions'] 
+        responses = data['responses']
     
     if survey_ids and responses is not None and not responses.empty:
+        # Show data summary and load more option
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.success(f"✅ Loaded {len(responses):,} responses for analysis")
+        with col2:
+            if st.button("📈 Load More Data", help="Load additional records for more comprehensive analysis"):
+                with st.spinner("Loading additional data..."):
+                    # Load more data and update session state
+                    client = get_backend_client()
+                    if client:
+                        try:
+                            additional_data = client.get_responses(
+                                survey="SB055_Profile_Survey1", 
+                                limit=10000,
+                                offset=5000,  # Start after initial 5000
+                                format="parquet"
+                            )
+                            if not additional_data.empty:
+                                # Merge with existing data
+                                combined_responses = pd.concat([responses, additional_data], ignore_index=True).drop_duplicates()
+                                
+                                # Update session state
+                                st.session_state.profile_survey_data['responses'] = combined_responses
+                                st.success(f"✅ Loaded {len(additional_data):,} additional responses! Total: {len(combined_responses):,}")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to load additional data: {e}")
+        
+        with col3:
+            if st.button("🔄 Refresh Data", help="Clear cache and reload fresh data"):
+                # Clear cached data
+                st.session_state.profile_survey_loaded = False
+                st.session_state.profile_survey_data = None
+                get_real_data.clear()  # Clear Streamlit cache
+                st.success("Cache cleared! Page will refresh with new data.")
+                st.rerun()
+        
         # Date Range Filter
         st.markdown("### 📅 Date Range Filter (NOTE: for shops visited, Usave was only added on 02 Sept 2025)")
         

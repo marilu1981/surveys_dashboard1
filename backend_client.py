@@ -5,8 +5,11 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from io import BytesIO
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import requests
 import streamlit as st
 
@@ -103,6 +106,17 @@ class BackendClient:
                     continue
             return rows
 
+    @staticmethod
+    def _parse_parquet_response(response: requests.Response) -> pd.DataFrame:
+        """Parse parquet binary response into a pandas DataFrame."""
+        try:
+            parquet_data = BytesIO(response.content)
+            df = pd.read_parquet(parquet_data, engine='pyarrow')
+            return df
+        except Exception as exc:
+            st.error(f"Failed to parse parquet response: {exc}")
+            return pd.DataFrame()
+
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
     def get_surveys_index(self) -> pd.DataFrame:
         response = self._request("GET", "/api/surveys")
@@ -111,28 +125,79 @@ class BackendClient:
         return df
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
-    def get_responses(self, *, survey: str, limit: int = 1000, **filters: Any) -> pd.DataFrame:
+    def get_responses(self, *, survey: str, limit: int = 1000, format: str = "json", **filters: Any) -> pd.DataFrame:
         if not survey:
             raise ValueError("survey parameter is required for get_responses")
         params: Dict[str, Any] = {"survey": survey, "limit": limit}
+        
+        # Add format parameter if parquet is requested
+        if format.lower() == "parquet":
+            params["format"] = "parquet"
+        
         params.update({k: v for k, v in filters.items() if v not in (None, "")})
 
-        response = self._request("GET", "/api/responses", params=params)
-        payload = self._safe_json(response)
-        df = self._coerce_dataframe(payload)
-        return df
+        # Update Accept header for parquet requests
+        headers = {}
+        if format.lower() == "parquet":
+            headers["Accept"] = "application/octet-stream"
+        
+        # Store original headers
+        original_headers = self.session.headers.copy()
+        
+        try:
+            if headers:
+                self.session.headers.update(headers)
+            
+            response = self._request("GET", "/api/responses", params=params)
+            
+            # Parse response based on format
+            if format.lower() == "parquet":
+                df = self._parse_parquet_response(response)
+            else:
+                payload = self._safe_json(response)
+                df = self._coerce_dataframe(payload)
+            
+            return df
+        finally:
+            # Restore original headers
+            self.session.headers = original_headers
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
-    def get_individual_survey(self, survey_id: str, *, limit: int = 100, full: bool = False) -> pd.DataFrame:
+    def get_individual_survey(self, survey_id: str, *, limit: int = 100, full: bool = False, format: str = "json") -> pd.DataFrame:
         path = f"/api/survey/{survey_id}"
         params: Dict[str, Any]
         if full:
             params = {"full": "true"}
         else:
             params = {"limit": limit}
-        response = self._request("GET", path, params=params)
-        payload = self._safe_json(response)
-        return self._coerce_dataframe(payload)
+        
+        # Add format parameter if parquet is requested
+        if format.lower() == "parquet":
+            params["format"] = "parquet"
+        
+        # Update Accept header for parquet requests
+        headers = {}
+        if format.lower() == "parquet":
+            headers["Accept"] = "application/octet-stream"
+        
+        # Store original headers
+        original_headers = self.session.headers.copy()
+        
+        try:
+            if headers:
+                self.session.headers.update(headers)
+            
+            response = self._request("GET", path, params=params)
+            
+            # Parse response based on format
+            if format.lower() == "parquet":
+                return self._parse_parquet_response(response)
+            else:
+                payload = self._safe_json(response)
+                return self._coerce_dataframe(payload)
+        finally:
+            # Restore original headers
+            self.session.headers = original_headers
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
     def get_survey_group(self, group_id: str, *, full: bool = True) -> pd.DataFrame:
@@ -172,11 +237,36 @@ class BackendClient:
         return payload if isinstance(payload, dict) else {}
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
-    def get_filtered_responses(self, filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+    def get_filtered_responses(self, filters: Optional[Dict[str, Any]] = None, format: str = "json") -> pd.DataFrame:
         params = {k: v for k, v in (filters or {}).items() if v not in (None, "")}
-        response = self._request("GET", "/api/responses", params=params)
-        payload = self._safe_json(response)
-        return self._coerce_dataframe(payload)
+        
+        # Add format parameter if parquet is requested
+        if format.lower() == "parquet":
+            params["format"] = "parquet"
+        
+        # Update Accept header for parquet requests
+        headers = {}
+        if format.lower() == "parquet":
+            headers["Accept"] = "application/octet-stream"
+        
+        # Store original headers
+        original_headers = self.session.headers.copy()
+        
+        try:
+            if headers:
+                self.session.headers.update(headers)
+            
+            response = self._request("GET", "/api/responses", params=params)
+            
+            # Parse response based on format
+            if format.lower() == "parquet":
+                return self._parse_parquet_response(response)
+            else:
+                payload = self._safe_json(response)
+                return self._coerce_dataframe(payload)
+        finally:
+            # Restore original headers
+            self.session.headers = original_headers
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
     def get_survey_summary(self) -> Dict[str, Any]:

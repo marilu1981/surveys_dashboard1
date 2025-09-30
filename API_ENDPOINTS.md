@@ -75,6 +75,7 @@ Get filtered and paginated survey responses with advanced filtering options. **R
 - `survey` (string) - **REQUIRED** - Filter by survey title (e.g., `SB055_Profile_Survey1`)
 - `limit` (number) - Number of responses (default: 1000, max: 5000)
 - `offset` (number) - Pagination offset (default: 0)
+- `format` (string) - Response format: `json` (default) or `parquet` for binary parquet format
 - `gender` (string) - Filter by gender (Male, Female, Other)
 - `age_group` (string) - Filter by age group (18-24, 25-34, 35-44, etc.)
 - `employment` (string) - Filter by employment status
@@ -83,7 +84,13 @@ Get filtered and paginated survey responses with advanced filtering options. **R
 
 **⚠️ Important:** Without the `survey` parameter, this endpoint will return an error to prevent expensive data loading.
 
-**Response:**
+**🚀 Performance Recommendation:** For large datasets (>1000 records) or profile surveys, use `format=parquet` for:
+- **60-80% smaller file sizes** due to columnar compression
+- **2-5x faster parsing** directly into pandas DataFrames  
+- **Better type preservation** (dates, numbers, etc.)
+- **Reduced bandwidth costs** especially for cloud deployments
+
+**Response (JSON format - default):**
 ```json
 {
   "data": [
@@ -112,7 +119,16 @@ Get filtered and paginated survey responses with advanced filtering options. **R
 }
 ```
 
+**Response (Parquet format - when format=parquet):**
+- Returns binary Apache Parquet file data
+- Content-Type: `application/octet-stream`
+- Contains the same data structure as JSON but in efficient columnar format
+- Significantly smaller file size and faster parsing for large datasets
+- Best for data analysis and bulk processing
+
 **Frontend Usage:**
+
+**JSON Format (default):**
 ```javascript
 const getFilteredResponses = async (filters = {}) => {
   // Survey parameter is REQUIRED
@@ -124,6 +140,40 @@ const getFilteredResponses = async (filters = {}) => {
   const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com/api/responses?${params}`);
   return await response.json();
 };
+```
+
+**Parquet Format:**
+```javascript
+const getFilteredResponsesParquet = async (filters = {}) => {
+  // Survey parameter is REQUIRED
+  if (!filters.survey) {
+    throw new Error('Survey parameter is required');
+  }
+  
+  filters.format = 'parquet';
+  const params = new URLSearchParams(filters);
+  const response = await fetch(`https://ansebmrsurveysv1.oa.r.appspot.com/api/responses?${params}`, {
+    headers: {
+      'Accept': 'application/octet-stream'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return await response.arrayBuffer(); // Returns binary parquet data
+};
+```
+
+**Python Usage with Backend Client:**
+```python
+# JSON format (default)
+responses_json = client.get_responses(survey='SB055_Profile_Survey1', limit=1000)
+
+# Parquet format - more efficient for large datasets
+responses_parquet = client.get_responses(survey='SB055_Profile_Survey1', limit=1000, format='parquet')
+```
 
 // Example usage - Survey parameter is REQUIRED
 const filters = {
@@ -159,8 +209,11 @@ Get data for a specific survey with optional full dataset. Uses individual surve
 - `full` (query) - Set to `true` for complete dataset (default: `false`)
 - `limit` (query) - Number of responses (default: 1000, max: 5000)
 - `offset` (query) - Pagination offset (default: 0)
+- `format` (query) - Response format: `json` (default) or `parquet` for binary parquet format
 
 **⚠️ Full Dataset Limits:** Full dataset requests are limited to 100K responses to prevent timeouts.
+
+**🚀 Performance Tip:** Use `format=parquet` for profile surveys and large datasets for significantly better performance and reduced bandwidth usage.
 
 **Available Surveys:**
 - `SB055_Profile_Survey1` (146,165 responses)
@@ -422,7 +475,7 @@ Get data schema documentation with field descriptions.
 **Response:**
 ```json
 {
-  "responses.ndjson": {
+  "responses": {
     "ts": "ISO date (Africa/Johannesburg tz applied)",
     "created_at": "ISO timestamp when response was created",
     "title": "survey_title",

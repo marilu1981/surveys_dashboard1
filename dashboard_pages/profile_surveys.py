@@ -33,16 +33,26 @@ def get_real_data():
         with st.spinner("Loading profile survey data..."):
             responses = pd.DataFrame()
             
-            # Strategy 1: Try direct Parquet file access (complete dataset)
+            # Strategy 1: Try Parquet first for optimal performance
             try:
-                responses = client.get_responses_parquet_direct()
+                st.info("📊 Attempting to load Parquet data...")
+                # Try main API first
+                responses = client.get_responses_parquet(
+                    survey="SB055_Profile_Survey1", 
+                    limit=5000  # Reasonable sample size for performance
+                )
+                
+                # If main API fails, try individual survey endpoint
+                if responses.empty:
+                    responses = client.get_responses_parquet_direct(
+                        survey="SB055_Profile_Survey1", 
+                        limit=5000
+                    )
+                
                 if not responses.empty:
-                    st.success("✅ Loaded complete dataset from Parquet file!")
-                else:
-                    st.info("Parquet file access failed, trying API fallback...")
+                    st.success("✅ Loaded Parquet data successfully!")
             except Exception as e:
-                st.warning(f"Parquet loading error: {str(e)[:100]}...")
-                responses = pd.DataFrame()
+                st.warning(f"Parquet loading failed: {str(e)[:50]}...")
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:
@@ -267,7 +277,7 @@ def main():
         
         # # Show sample data
         # st.markdown("#### 📋 Sample Data (First 5 rows)")
-        # st.dataframe(responses.head(), width='stretch')
+        # st.dataframe(responses.head(), use_container_width=True)
         
         # Debug: Show available survey questions
         if 'SURVEY_QUESTION' in responses.columns:
@@ -407,7 +417,7 @@ def main():
                             showlegend=False,
                             yaxis={'categoryorder': 'total ascending'}  # Rank high to low
                         )
-                        st.plotly_chart(fig_shops, width='stretch')
+                        st.plotly_chart(fig_shops, use_container_width=True)
                     
                     with col2:
                         # Show shop data table
@@ -513,7 +523,7 @@ def main():
                             yaxis_title="Number of Responses",
                             xaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_hist, width='stretch')
+                        st.plotly_chart(fig_hist, use_container_width=True)
                     
                     with col2:
                         # Box plot for cost distribution
@@ -530,7 +540,7 @@ def main():
                             yaxis_title="Cost (R)",
                             yaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_box, width='stretch')
+                        st.plotly_chart(fig_box, use_container_width=True)
                     
                     # Cost statistics cards
                     st.markdown("##### Trip Cost Statistics")
@@ -596,7 +606,7 @@ def main():
                         showlegend=False,
                         xaxis_tickangle=-45
                     )
-                    st.plotly_chart(fig_range, width='stretch')
+                    st.plotly_chart(fig_range, use_container_width=True)
                     
                     # Show detailed cost data table
                     st.markdown("##### Cost Range Breakdown")
@@ -663,7 +673,7 @@ def main():
                             x=1.01
                         )
                     )
-                    st.plotly_chart(fig_money_pie, width='stretch')
+                    st.plotly_chart(fig_money_pie, use_container_width=True)
                 
                 with col2:
                     # Horizontal bar chart for money sources
@@ -681,7 +691,7 @@ def main():
                         showlegend=False,
                         yaxis={'categoryorder': 'total ascending'}
                     )
-                    st.plotly_chart(fig_money_bar, width='stretch')
+                    st.plotly_chart(fig_money_bar, use_container_width=True)
                 
                 # Money source data table and Side Hustles chart
                 col_side_hustles, col_table = st.columns([1, 2])
@@ -712,7 +722,7 @@ def main():
                                 x=1.01
                             )
                         )
-                        st.plotly_chart(fig_side_hustles, width='stretch')
+                        st.plotly_chart(fig_side_hustles, use_container_width=True)
                     else:
                         st.info("No side hustles data available (all values are NaN)")
 

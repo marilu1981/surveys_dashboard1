@@ -138,7 +138,7 @@ def _render_question_analysis(data: pd.DataFrame) -> None:
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            st.dataframe(distribution, hide_index=True, width='stretch')
+            st.dataframe(distribution, hide_index=True, use_container_width=True)
             st.download_button(
                 "Download distribution (CSV)",
                 distribution.to_csv(index=False),
@@ -155,7 +155,7 @@ def _render_question_analysis(data: pd.DataFrame) -> None:
                 color_discrete_sequence=px.colors.qualitative.Set3,
             )
             fig.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_demographics(data: pd.DataFrame) -> None:
@@ -175,7 +175,7 @@ def _render_demographics(data: pd.DataFrame) -> None:
                 color_discrete_sequence=px.colors.qualitative.Pastel,
             )
             fig.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
 
     if "age_group" in data.columns:
         with col2:
@@ -188,7 +188,7 @@ def _render_demographics(data: pd.DataFrame) -> None:
                 color_continuous_scale="viridis",
             )
             fig.update_layout(showlegend=False, xaxis_title="Age group", yaxis_title="Responses")
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
 
     if "home_province" in data.columns:
         counts = data["home_province"].fillna("Unknown").value_counts()
@@ -196,7 +196,7 @@ def _render_demographics(data: pd.DataFrame) -> None:
         st.dataframe(
             pd.DataFrame({"Province": counts.index, "Responses": counts.values}),
             hide_index=True,
-            width='stretch',
+            use_container_width=True,
         )
 
 

@@ -6,12 +6,16 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from io import BytesIO
+import urllib3
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import requests
 import streamlit as st
+
+# Suppress SSL warnings for staging servers
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_TIMEOUT = 20
 CACHE_HASH_FUNCS = {
@@ -317,21 +321,41 @@ class BackendClient:
         return response.text
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
-    def get_responses_parquet(self) -> pd.DataFrame:
-        """Get responses data from the Parquet file through API endpoints"""
+    def get_responses_parquet(self, survey: str = "SB055_Profile_Survey1", limit: int = None) -> pd.DataFrame:
+        """Get responses data in Parquet format using the proper API endpoints"""
         
-        # Try different API endpoints that might serve the Parquet file
-        possible_endpoints = [
-            # Try as API endpoint with parquet format
-            f"{self.base_url}/api/responses/parquet",
-            f"{self.base_url}/api/data/responses.parquet", 
-            f"{self.base_url}/api/files/responses.parquet",
-            # Try staging with API structure
-            "https://staging.ansebmrsurveysv1.appspot.com/api/responses/parquet",
-            "https://staging.ansebmrsurveysv1.appspot.com/api/data/responses.parquet",
-            # Try with authentication parameters
-            f"{self.base_url}/processed/responses.parquet",
-        ]
+        # Use the correct API endpoints that support format=parquet
+        try:
+            # Primary endpoint: /api/responses with format=parquet
+            params = {
+                "survey": survey,
+                "format": "parquet"
+            }
+            if limit:
+                params["limit"] = limit
+                
+            st.info(f"🔍 Loading {survey} data in Parquet format...")
+            response = self._request("GET", "/api/responses", params=params)
+            
+            if response.status_code == 200:
+                content = response.content
+                st.info(f"📦 Downloaded {len(content):,} bytes in Parquet format")
+                
+                # Check for Parquet magic bytes
+                if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
+                    # Parse the Parquet file
+                    parquet_data = BytesIO(content)
+                    df = pd.read_parquet(parquet_data, engine='pyarrow')
+                    st.success(f"✅ Loaded {len(df):,} records from Parquet API")
+                    return df
+                else:
+                    st.warning("Response doesn't appear to be valid Parquet format")
+            
+            return pd.DataFrame()
+            
+        except Exception as e:
+            st.warning(f"Parquet API request failed: {str(e)[:100]}...")
+            return pd.DataFrame()
         
         for i, url in enumerate(possible_endpoints):
             try:
@@ -409,89 +433,38 @@ class BackendClient:
         st.info("📄 Parquet file access methods exhausted, using API fallback")
         return pd.DataFrame()
 
-    def get_responses_parquet_direct(self) -> pd.DataFrame:
-        """Direct access to Parquet file - bypass web server routing"""
+    def get_responses_parquet_direct(self, survey: str = "SB055_Profile_Survey1", limit: int = None) -> pd.DataFrame:
+        """Get survey data using individual survey endpoint with Parquet format"""
         
-        # Since you confirmed the file exists, let's try direct access methods
-        file_urls = [
-            "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet",
-            "https://ansebmrsurveysv1.oa.r.appspot.com/processed/responses.parquet",
-        ]
-        
-        for i, url in enumerate(file_urls):
-            try:
-                st.info(f"🔍 Attempting direct Parquet file access ({i+1}/2)...")
+        try:
+            # Use the individual survey endpoint: /api/survey/:surveyTitle with format=parquet
+            endpoint = f"/api/survey/{survey}"
+            params = {"format": "parquet"}
+            if limit:
+                params["limit"] = limit
                 
-                # Try with different authentication approaches
-                auth_methods = [
-                    # Method 1: API key in header
-                    {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {},
-                    # Method 2: API key as query parameter  
-                    {},
-                    # Method 3: Basic auth style
-                    {"X-API-Key": self.api_key} if self.api_key else {},
-                ]
+            st.info(f"🔍 Loading {survey} via individual survey endpoint (Parquet)...")
+            response = self._request("GET", endpoint, params=params)
+            
+            if response.status_code == 200:
+                content = response.content
+                st.info(f"📦 Downloaded {len(content):,} bytes from individual survey endpoint")
                 
-                for j, headers in enumerate(auth_methods):
-                    try:
-                        # Add standard headers
-                        request_headers = {
-                            "Accept": "application/octet-stream, application/parquet, */*",
-                            "User-Agent": "Sebenza-Dashboard/1.0",
-                            "Cache-Control": "no-cache",
-                            **headers
-                        }
-                        
-                        # Add API key as query param for method 2
-                        params = {}
-                        if j == 1 and self.api_key:
-                            params["api_key"] = self.api_key
-                        
-                        response = requests.get(
-                            url,
-                            headers=request_headers,
-                            params=params,
-                            timeout=60,  # Longer timeout for large file
-                            verify=False,  # Disable SSL verification for staging
-                            stream=True
-                        )
-                        
-                        st.info(f"   Auth method {j+1}: Status {response.status_code}, {len(response.content):,} bytes")
-                        
-                        if response.status_code == 200:
-                            content = response.content
-                            
-                            # Check if we got HTML (web server default response)
-                            if content.startswith(b'<!DOCTYPE') or content.startswith(b'<html'):
-                                st.info(f"   ↳ Got HTML page, trying next auth method...")
-                                continue
-                            
-                            # Check for Parquet magic bytes
-                            if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
-                                st.success(f"🎉 Found valid Parquet file! Size: {len(content):,} bytes")
-                                
-                                # Parse the Parquet file
-                                parquet_data = BytesIO(content)
-                                df = pd.read_parquet(parquet_data, engine='pyarrow')
-                                
-                                if not df.empty:
-                                    st.success(f"✅ Successfully loaded {len(df):,} records from Parquet file!")
-                                    return df
-                            else:
-                                # Show what we actually got for debugging
-                                content_preview = content[:100].decode('utf-8', errors='ignore')
-                                st.info(f"   ↳ Not Parquet format. Content starts with: {content_preview[:50]}...")
-                        
-                    except Exception as auth_exc:
-                        st.info(f"   Auth method {j+1} failed: {str(auth_exc)[:50]}...")
-                        continue
-                        
-            except Exception as url_exc:
-                st.info(f"URL {i+1} failed: {str(url_exc)[:50]}...")
-                continue
-        
-        st.warning("❌ Could not access Parquet file through any method")
-        return pd.DataFrame()
+                # Check for Parquet magic bytes
+                if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
+                    # Parse the Parquet file
+                    parquet_data = BytesIO(content)
+                    df = pd.read_parquet(parquet_data, engine='pyarrow')
+                    st.success(f"✅ Loaded {len(df):,} records from individual survey Parquet API")
+                    return df
+                else:
+                    st.warning("Individual survey response doesn't appear to be valid Parquet format")
+            
+            return pd.DataFrame()
+            
+        except Exception as e:
+            st.warning(f"Individual survey Parquet request failed: {str(e)[:100]}...")
+            return pd.DataFrame()
 
     def test_connection(self) -> bool:
         try:

@@ -393,9 +393,9 @@ def main():
                                     margin=dict(l=20, r=20, t=40, b=20)
                                 )
                                 fig.update_xaxes(tickangle=45)
-                                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
+                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                                 
-                                st.dataframe(crosstab_data.style.format("{:.1f}%"), width='stretch')
+                                st.dataframe(crosstab_data.style.format("{:.1f}%"), use_container_width=True)
                             else:
                                 # Create count chart - transpose for better visualization
                                 chart_data_transposed = chart_data.T
@@ -414,9 +414,9 @@ def main():
                                     margin=dict(l=20, r=20, t=40, b=20)
                                 )
                                 fig.update_xaxes(tickangle=45)
-                                st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
+                                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                                 
-                                st.dataframe(crosstab_data.style.format("{:,}"), width='stretch')
+                                st.dataframe(crosstab_data.style.format("{:,}"), use_container_width=True)
                             
                             # Download crosstab
                             csv_data = crosstab_data.to_csv()

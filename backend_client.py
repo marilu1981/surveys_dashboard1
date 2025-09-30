@@ -318,67 +318,82 @@ class BackendClient:
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
     def get_responses_parquet(self) -> pd.DataFrame:
-        """Get responses data from the staging Parquet file"""
-        # Try multiple possible URLs for the Parquet file
-        possible_urls = [
-            "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet",
-            f"{self.base_url}/processed/responses.parquet",  # Try main server
-            f"{self.base_url}/api/responses.parquet",  # Try as API endpoint
-        ]
+        """Get responses data from the Parquet file using proper authentication"""
+        # Try the staging server first since you confirmed the file exists there
+        staging_url = "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet"
         
-        for i, url in enumerate(possible_urls):
-            try:
-                # Only show first attempt to reduce verbosity
-                if i == 0:
-                    st.info("🔍 Checking for Parquet file availability...")
+        try:
+            st.info("🔍 Accessing Parquet file from staging server...")
+            
+            # Use the same session and headers as other API calls for consistency
+            original_headers = self.session.headers.copy()
+            
+            # Add specific headers for file download
+            self.session.headers.update({
+                "Accept": "application/octet-stream, */*",
+                "Cache-Control": "no-cache",
+                "User-Agent": "Sebenza-Dashboard/1.0"
+            })
+            
+            # Use the session's request method for consistent authentication
+            response = self.session.get(
+                staging_url,
+                timeout=30,  # Longer timeout for large file
+                verify=False,  # Disable SSL verification for staging
+                stream=True   # Stream large file
+            )
+            
+            # Check response status
+            if response.status_code == 404:
+                st.warning("📄 Parquet file not found at expected location")
+                return pd.DataFrame()
+            elif response.status_code == 403:
+                st.warning("🔐 Access denied to Parquet file - authentication issue")
+                return pd.DataFrame()
+            
+            response.raise_for_status()
+            
+            # Get the content
+            content = response.content
+            st.info(f"📦 Downloaded {len(content):,} bytes from staging server")
+            
+            # Validate it's actually a Parquet file
+            if len(content) < 1000:
+                st.warning(f"📄 File too small ({len(content)} bytes), not a valid Parquet file")
+                return pd.DataFrame()
+            
+            # Check content type
+            content_start = content[:100].decode('utf-8', errors='ignore').strip().lower()
+            if content_start.startswith(('<html', '<!doctype', '{', '[')):
+                st.warning("📄 Server returned HTML/JSON instead of Parquet file")
+                # Show first few characters for debugging
+                st.code(f"Response starts with: {content_start[:200]}")
+                return pd.DataFrame()
+            
+            # Check for Parquet magic bytes
+            if not content.startswith(b'PAR1') and b'PAR1' not in content[-8:]:
+                st.warning("📄 File doesn't contain Parquet magic bytes")
+                # Show first few bytes for debugging
+                st.code(f"First 50 bytes: {content[:50]}")
+                return pd.DataFrame()
+            
+            # Parse the Parquet file
+            parquet_data = BytesIO(content)
+            df = pd.read_parquet(parquet_data, engine='pyarrow')
+            
+            if not df.empty:
+                st.success(f"✅ Successfully loaded {len(df):,} records from Parquet file!")
+                return df
+            else:
+                st.warning("📄 Parquet file is empty")
+                return pd.DataFrame()
                 
-                # Make direct request with SSL verification disabled for staging
-                headers = {"Accept": "application/octet-stream"}
-                if self.api_key:
-                    headers["Authorization"] = f"Bearer {self.api_key}"
-                
-                # Disable SSL verification for staging environments
-                verify_ssl = not ("staging" in url.lower())
-                
-                response = requests.get(
-                    url, 
-                    headers=headers, 
-                    timeout=self.timeout,
-                    verify=verify_ssl
-                )
-                response.raise_for_status()
-                
-                # Check if response is actually Parquet data
-                content = response.content
-                if len(content) < 1000:  # Too small to be a real Parquet file
-                    st.info(f"Response too small ({len(content)} bytes), likely not a Parquet file")
-                    continue
-                
-                # Check if response is HTML/JSON instead of Parquet
-                content_start = content[:100].decode('utf-8', errors='ignore').strip().lower()
-                if content_start.startswith(('<html', '<!doctype', '{', '[')):
-                    st.info(f"Server returned HTML/JSON instead of Parquet file")
-                    continue
-                
-                # Check for Parquet magic bytes (PAR1)
-                if not content.startswith(b'PAR1') and b'PAR1' not in content[-8:]:
-                    st.info(f"No Parquet magic bytes found, not a valid Parquet file")
-                    continue
-                    
-                # Parse the Parquet file
-                parquet_data = BytesIO(content)
-                df = pd.read_parquet(parquet_data, engine='pyarrow')
-                
-                if not df.empty:
-                    st.success(f"✅ Successfully loaded {len(df):,} records from Parquet file")
-                    return df
-                    
-            except Exception as exc:
-                # Only log detailed errors for debugging, not for user display
-                continue
-        
-        st.info("📄 Parquet file not available, using API endpoint instead.")
-        return pd.DataFrame()
+        except Exception as exc:
+            st.error(f"❌ Failed to fetch Parquet file: {str(exc)}")
+            return pd.DataFrame()
+        finally:
+            # Restore original headers
+            self.session.headers = original_headers
 
     def test_connection(self) -> bool:
         try:

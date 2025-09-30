@@ -35,8 +35,10 @@ def get_real_data():
             # st.success("✅ Using pre-computed demographics data from backend")
             return None, None, demographics_data, None, None
         
-        # Fallback to responses data if demographics endpoint not available
-        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=500, format="parquet")  # Reduced for cost efficiency
+        # Try to get data from Parquet file first, then fallback to API
+        responses = client.get_responses_parquet()
+        if responses.empty:
+            responses = client.get_responses(survey="SB055_Profile_Survey1", limit=500, format="json")  # Reduced for cost efficiency
         
         if responses.empty:
             return None, None, None, None, None

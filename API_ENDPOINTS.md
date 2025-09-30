@@ -84,7 +84,9 @@ Get filtered and paginated survey responses with advanced filtering options. **R
 
 **⚠️ Important:** Without the `survey` parameter, this endpoint will return an error to prevent expensive data loading.
 
-**🚀 Performance Recommendation:** For large datasets (>1000 records) or profile surveys, use `format=parquet` for:
+**🚀 Performance Recommendation:** For profile surveys, use the dedicated Parquet file for optimal performance:
+- **Direct access**: `staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet`
+- **Complete dataset**: All profile survey responses in efficient columnar format
 - **60-80% smaller file sizes** due to columnar compression
 - **2-5x faster parsing** directly into pandas DataFrames  
 - **Better type preservation** (dates, numbers, etc.)
@@ -197,7 +199,45 @@ const data = await getFilteredResponses(filters);
 
 ---
 
-## 📋 Survey-Specific Endpoints
+## � Direct Parquet File Access
+
+### Profile Survey Parquet File - ✅ OPTIMIZED
+**GET** `https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet`
+
+Access the complete profile survey dataset in Parquet format for maximum performance and efficiency.
+
+**Features:**
+- **Complete dataset**: All profile survey responses (SB055_Profile_Survey1)
+- **Columnar format**: Optimized for analytics and filtering
+- **Compressed**: 60-80% smaller than equivalent JSON
+- **Type-safe**: Preserves data types (dates, numbers, strings)
+- **Fast loading**: Direct pandas integration
+
+**Python Usage:**
+```python
+import pandas as pd
+import requests
+from io import BytesIO
+
+# Direct download and load
+url = "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet"
+response = requests.get(url)
+df = pd.read_parquet(BytesIO(response.content))
+
+# Or using backend client
+client = get_backend_client()
+df = client.get_responses_parquet()
+```
+
+**Performance Benefits:**
+- ⚡ **5-10x faster** than paginated API calls
+- 📦 **Smaller download** size due to compression
+- 🎯 **Complete dataset** in single request
+- 🔧 **Analytics-ready** format
+
+---
+
+## �📋 Survey-Specific Endpoints
 
 ### 4. Individual Survey Data - ✅ COST-OPTIMIZED
 **GET** `/api/survey/:surveyTitle`

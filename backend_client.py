@@ -110,11 +110,23 @@ class BackendClient:
     def _parse_parquet_response(response: requests.Response) -> pd.DataFrame:
         """Parse parquet binary response into a pandas DataFrame."""
         try:
-            parquet_data = BytesIO(response.content)
+            # Check if response content looks like JSON (error response)
+            content = response.content
+            if content.startswith(b'{') or content.startswith(b'['):
+                # This is likely a JSON error response, not parquet
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get('error', 'Unknown server error')
+                    st.warning(f"Server returned JSON instead of Parquet: {error_msg}")
+                except:
+                    st.warning("Server returned non-parquet data. Falling back to JSON format.")
+                return pd.DataFrame()
+            
+            parquet_data = BytesIO(content)
             df = pd.read_parquet(parquet_data, engine='pyarrow')
             return df
         except Exception as exc:
-            st.error(f"Failed to parse parquet response: {exc}")
+            st.warning(f"Parquet parsing failed: {exc}. Falling back to JSON format.")
             return pd.DataFrame()
 
     @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
@@ -153,6 +165,11 @@ class BackendClient:
             # Parse response based on format
             if format.lower() == "parquet":
                 df = self._parse_parquet_response(response)
+                # If parquet parsing failed, fall back to JSON
+                if df.empty:
+                    st.info("Falling back to JSON format...")
+                    payload = self._safe_json(response)
+                    df = self._coerce_dataframe(payload)
             else:
                 payload = self._safe_json(response)
                 df = self._coerce_dataframe(payload)
@@ -191,7 +208,13 @@ class BackendClient:
             
             # Parse response based on format
             if format.lower() == "parquet":
-                return self._parse_parquet_response(response)
+                df = self._parse_parquet_response(response)
+                # If parquet parsing failed, fall back to JSON
+                if df.empty:
+                    st.info("Falling back to JSON format...")
+                    payload = self._safe_json(response)
+                    df = self._coerce_dataframe(payload)
+                return df
             else:
                 payload = self._safe_json(response)
                 return self._coerce_dataframe(payload)
@@ -260,7 +283,13 @@ class BackendClient:
             
             # Parse response based on format
             if format.lower() == "parquet":
-                return self._parse_parquet_response(response)
+                df = self._parse_parquet_response(response)
+                # If parquet parsing failed, fall back to JSON
+                if df.empty:
+                    st.info("Falling back to JSON format...")
+                    payload = self._safe_json(response)
+                    df = self._coerce_dataframe(payload)
+                return df
             else:
                 payload = self._safe_json(response)
                 return self._coerce_dataframe(payload)
@@ -286,6 +315,31 @@ class BackendClient:
         response = self._request("GET", "/api/reporting/profile-survey", params={"format": "csv"})
         response.encoding = response.encoding or "utf-8"
         return response.text
+
+    @st.cache_data(ttl=300, show_spinner=False, hash_funcs=CACHE_HASH_FUNCS)
+    def get_responses_parquet(self) -> pd.DataFrame:
+        """Get responses data from the staging Parquet file"""
+        try:
+            # Use staging URL to fetch the Parquet file directly
+            staging_url = "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet"
+            
+            # Make direct request to staging server
+            headers = {"Accept": "application/octet-stream"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            
+            response = requests.get(staging_url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+            
+            # Parse the Parquet file
+            parquet_data = BytesIO(response.content)
+            df = pd.read_parquet(parquet_data, engine='pyarrow')
+            
+            return df
+            
+        except Exception as exc:
+            st.error(f"Failed to fetch Parquet file from staging: {exc}")
+            return pd.DataFrame()
 
     def test_connection(self) -> bool:
         try:

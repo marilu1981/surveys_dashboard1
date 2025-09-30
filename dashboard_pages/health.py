@@ -21,8 +21,10 @@ def load_health_data(full: bool = True):
         client = get_backend_client()
         if client:
             if full:
-                # Use the individual survey endpoint with limit for cost efficiency
-                health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000, format="parquet")
+                # Try to get data from Parquet file first, then fallback to API
+                health_data = client.get_responses_parquet()
+                if health_data.empty:
+                    health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000, format="json")
             else:
                 # Use the health surveys method with limit for sample data
                 health_data = client.get_health_surveys(limit=100)

@@ -22,7 +22,7 @@ from card_style import apply_card_styles
 
 @st.cache_data(ttl=600, show_spinner=True)  # Cache for 10 minutes
 def get_real_data():
-    """Get real data from your backend API - optimized for performance"""
+    """Get real data from Parquet file or API fallback - optimized for performance"""
     client = get_backend_client()
     if not client:
         st.warning("Backend connection not available - using sample data")
@@ -30,21 +30,26 @@ def get_real_data():
 
     try:
         # Start with a reasonable sample size for initial load
-        with st.spinner("Loading profile survey data..."):
-            # Load data in efficient single call with Parquet format
-            responses = client.get_responses(
-                survey="SB055_Profile_Survey1", 
-                limit=5000,  # Reduced from 30K for much faster initial load
-                format="parquet"
-            )
+        with st.spinner("Loading profile survey data from Parquet file..."):
+            # Try to load from staging Parquet file first (most efficient)
+            responses = client.get_responses_parquet()
             
             if responses.empty:
-                # Fallback to individual survey endpoint
-                responses = client.get_individual_survey(
-                    "SB055_Profile_Survey1", 
-                    limit=5000, 
-                    format="parquet"
+                # Fallback to JSON API if Parquet fails
+                st.info("Parquet file unavailable, falling back to API...")
+                responses = client.get_responses(
+                    survey="SB055_Profile_Survey1", 
+                    limit=5000,  # Reduced from 30K for much faster initial load
+                    format="json"
                 )
+                
+                if responses.empty:
+                    # Last fallback to individual survey endpoint
+                    responses = client.get_individual_survey(
+                        "SB055_Profile_Survey1", 
+                        limit=5000, 
+                        format="json"
+                    )
         
         if responses.empty:
             st.warning("Unable to retrieve profile survey responses from the backend")
@@ -134,41 +139,25 @@ def main():
         responses = data['responses']
     
     if survey_ids and responses is not None and not responses.empty:
-        # Show data summary and load more option
-        col1, col2, col3 = st.columns([2, 1, 1])
+        # Show data summary and controls
+        col1, col2 = st.columns([3, 1])
         with col1:
-            st.success(f"✅ Loaded {len(responses):,} responses for analysis")
-        with col2:
-            if st.button("📈 Load More Data", help="Load additional records for more comprehensive analysis"):
-                with st.spinner("Loading additional data..."):
-                    # Load more data and update session state
-                    client = get_backend_client()
-                    if client:
-                        try:
-                            additional_data = client.get_responses(
-                                survey="SB055_Profile_Survey1", 
-                                limit=10000,
-                                offset=5000,  # Start after initial 5000
-                                format="parquet"
-                            )
-                            if not additional_data.empty:
-                                # Merge with existing data
-                                combined_responses = pd.concat([responses, additional_data], ignore_index=True).drop_duplicates()
-                                
-                                # Update session state
-                                st.session_state.profile_survey_data['responses'] = combined_responses
-                                st.success(f"✅ Loaded {len(additional_data):,} additional responses! Total: {len(combined_responses):,}")
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to load additional data: {e}")
+            # Check if we loaded from Parquet or API fallback
+            data_source = "Parquet file" if len(responses) > 10000 else "API (limited)"
+            st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
+            
+            if len(responses) > 50000:
+                st.info("📊 Using complete dataset from Parquet file for comprehensive analysis")
+            elif len(responses) < 10000:
+                st.warning("⚠️ Using limited dataset from API. For complete analysis, ensure Parquet file is accessible.")
         
-        with col3:
-            if st.button("🔄 Refresh Data", help="Clear cache and reload fresh data"):
+        with col2:
+            if st.button("🔄 Refresh", help="Clear cache and reload fresh data from Parquet file"):
                 # Clear cached data
                 st.session_state.profile_survey_loaded = False
                 st.session_state.profile_survey_data = None
                 get_real_data.clear()  # Clear Streamlit cache
-                st.success("Cache cleared! Page will refresh with new data.")
+                st.success("Cache cleared! Reloading fresh data...")
                 st.rerun()
         
         # Date Range Filter

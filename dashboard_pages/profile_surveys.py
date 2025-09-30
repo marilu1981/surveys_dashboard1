@@ -39,7 +39,9 @@ def get_real_data():
                 if not responses.empty:
                     st.success("✅ Loaded complete dataset from Parquet file")
             except Exception as e:
-                st.warning(f"Parquet loading failed: {str(e)[:50]}...")
+                # Suppress SSL certificate warnings for staging - common issue
+                if "SSL" not in str(e) and "certificate" not in str(e):
+                    st.info(f"Parquet unavailable, using API fallback: {str(e)[:50]}...")
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:

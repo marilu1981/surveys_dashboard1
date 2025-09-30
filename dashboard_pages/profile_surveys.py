@@ -33,15 +33,9 @@ def get_real_data():
         with st.spinner("Loading profile survey data..."):
             responses = pd.DataFrame()
             
-            # Strategy 1: Try Parquet file (most efficient, complete dataset)
-            try:
-                # Force use of new method by calling it directly
-                responses = client.get_responses_parquet_v2() if hasattr(client, 'get_responses_parquet_v2') else client.get_responses_parquet()
-                if not responses.empty:
-                    st.success("✅ Loaded complete dataset from Parquet file")
-            except Exception as e:
-                # Show the actual error for debugging
-                st.warning(f"Parquet loading error: {str(e)[:100]}...")
+            # Strategy 1: Skip Parquet attempts for now (backend doesn't serve via API)
+            # TODO: Enable when backend team adds Parquet API endpoint
+            responses = pd.DataFrame()  # Skip Parquet attempts
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:

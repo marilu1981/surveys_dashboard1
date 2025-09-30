@@ -326,9 +326,11 @@ class BackendClient:
             f"{self.base_url}/api/responses.parquet",  # Try as API endpoint
         ]
         
-        for url in possible_urls:
+        for i, url in enumerate(possible_urls):
             try:
-                st.info(f"Attempting to fetch Parquet data from: {url}")
+                # Only show first attempt to reduce verbosity
+                if i == 0:
+                    st.info("🔍 Checking for Parquet file availability...")
                 
                 # Make direct request with SSL verification disabled for staging
                 headers = {"Accept": "application/octet-stream"}
@@ -348,7 +350,19 @@ class BackendClient:
                 
                 # Check if response is actually Parquet data
                 content = response.content
-                if len(content) < 100:  # Too small to be a Parquet file
+                if len(content) < 1000:  # Too small to be a real Parquet file
+                    st.info(f"Response too small ({len(content)} bytes), likely not a Parquet file")
+                    continue
+                
+                # Check if response is HTML/JSON instead of Parquet
+                content_start = content[:100].decode('utf-8', errors='ignore').strip().lower()
+                if content_start.startswith(('<html', '<!doctype', '{', '[')):
+                    st.info(f"Server returned HTML/JSON instead of Parquet file")
+                    continue
+                
+                # Check for Parquet magic bytes (PAR1)
+                if not content.startswith(b'PAR1') and b'PAR1' not in content[-8:]:
+                    st.info(f"No Parquet magic bytes found, not a valid Parquet file")
                     continue
                     
                 # Parse the Parquet file
@@ -360,10 +374,10 @@ class BackendClient:
                     return df
                     
             except Exception as exc:
-                st.warning(f"Failed to fetch from {url}: {str(exc)[:100]}...")
+                # Only log detailed errors for debugging, not for user display
                 continue
         
-        st.warning("❌ Could not fetch Parquet file from any source. Falling back to API.")
+        st.info("📄 Parquet file not available, using API endpoint instead.")
         return pd.DataFrame()
 
     def test_connection(self) -> bool:

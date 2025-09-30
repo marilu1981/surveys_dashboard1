@@ -409,58 +409,88 @@ class BackendClient:
         st.info("📄 Parquet file access methods exhausted, using API fallback")
         return pd.DataFrame()
 
-    def get_responses_parquet_v2(self) -> pd.DataFrame:
-        """NEW VERSION: Get responses data from the Parquet file through API endpoints"""
+    def get_responses_parquet_direct(self) -> pd.DataFrame:
+        """Direct access to Parquet file - bypass web server routing"""
         
-        # Try different API endpoints that might serve the Parquet file
-        possible_endpoints = [
-            # Try as API endpoint with parquet format
-            "/api/responses/parquet",
-            "/api/data/responses.parquet", 
-            "/api/files/responses.parquet",
-            "/api/processed/responses.parquet",
-            "/processed/responses.parquet",
+        # Since you confirmed the file exists, let's try direct access methods
+        file_urls = [
+            "https://staging.ansebmrsurveysv1.appspot.com/processed/responses.parquet",
+            "https://ansebmrsurveysv1.oa.r.appspot.com/processed/responses.parquet",
         ]
         
-        for i, endpoint in enumerate(possible_endpoints):
+        for i, url in enumerate(file_urls):
             try:
-                if i == 0:
-                    st.info("🔍 NEW METHOD: Trying API endpoints for Parquet file...")
+                st.info(f"🔍 Attempting direct Parquet file access ({i+1}/2)...")
                 
-                # Use the _request method for consistent authentication and error handling
-                response = self._request("GET", endpoint)
+                # Try with different authentication approaches
+                auth_methods = [
+                    # Method 1: API key in header
+                    {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {},
+                    # Method 2: API key as query parameter  
+                    {},
+                    # Method 3: Basic auth style
+                    {"X-API-Key": self.api_key} if self.api_key else {},
+                ]
                 
-                # Get content and validate
-                content = response.content
-                st.info(f"📦 Endpoint {i+1} ({endpoint}): Downloaded {len(content):,} bytes")
-                
-                # Quick validation - check if it's actually Parquet
-                if len(content) < 1000:
-                    st.info(f"   ↳ Too small, trying next endpoint...")
-                    continue
-                    
-                content_start = content[:50].decode('utf-8', errors='ignore').strip().lower()
-                if content_start.startswith(('<html', '<!doctype', '{', '[')):
-                    st.info(f"   ↳ Got HTML/JSON, trying next endpoint...")
-                    continue
-                
-                # Check for Parquet magic bytes
-                if content.startswith(b'PAR1') or b'PAR1' in content[-8:]:
-                    # Parse the Parquet file
-                    parquet_data = BytesIO(content)
-                    df = pd.read_parquet(parquet_data, engine='pyarrow')
-                    
-                    if not df.empty:
-                        st.success(f"✅ SUCCESS! Found Parquet at {endpoint}! Loaded {len(df):,} records")
-                        return df
-                else:
-                    st.info(f"   ↳ No Parquet magic bytes found")
+                for j, headers in enumerate(auth_methods):
+                    try:
+                        # Add standard headers
+                        request_headers = {
+                            "Accept": "application/octet-stream, application/parquet, */*",
+                            "User-Agent": "Sebenza-Dashboard/1.0",
+                            "Cache-Control": "no-cache",
+                            **headers
+                        }
                         
-            except Exception as exc:
-                st.info(f"   ↳ Endpoint failed: {str(exc)[:50]}...")
+                        # Add API key as query param for method 2
+                        params = {}
+                        if j == 1 and self.api_key:
+                            params["api_key"] = self.api_key
+                        
+                        response = requests.get(
+                            url,
+                            headers=request_headers,
+                            params=params,
+                            timeout=60,  # Longer timeout for large file
+                            verify=False,  # Disable SSL verification for staging
+                            stream=True
+                        )
+                        
+                        st.info(f"   Auth method {j+1}: Status {response.status_code}, {len(response.content):,} bytes")
+                        
+                        if response.status_code == 200:
+                            content = response.content
+                            
+                            # Check if we got HTML (web server default response)
+                            if content.startswith(b'<!DOCTYPE') or content.startswith(b'<html'):
+                                st.info(f"   ↳ Got HTML page, trying next auth method...")
+                                continue
+                            
+                            # Check for Parquet magic bytes
+                            if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
+                                st.success(f"🎉 Found valid Parquet file! Size: {len(content):,} bytes")
+                                
+                                # Parse the Parquet file
+                                parquet_data = BytesIO(content)
+                                df = pd.read_parquet(parquet_data, engine='pyarrow')
+                                
+                                if not df.empty:
+                                    st.success(f"✅ Successfully loaded {len(df):,} records from Parquet file!")
+                                    return df
+                            else:
+                                # Show what we actually got for debugging
+                                content_preview = content[:100].decode('utf-8', errors='ignore')
+                                st.info(f"   ↳ Not Parquet format. Content starts with: {content_preview[:50]}...")
+                        
+                    except Exception as auth_exc:
+                        st.info(f"   Auth method {j+1} failed: {str(auth_exc)[:50]}...")
+                        continue
+                        
+            except Exception as url_exc:
+                st.info(f"URL {i+1} failed: {str(url_exc)[:50]}...")
                 continue
         
-        st.info("📄 No valid Parquet endpoints found, using API fallback")
+        st.warning("❌ Could not access Parquet file through any method")
         return pd.DataFrame()
 
     def test_connection(self) -> bool:

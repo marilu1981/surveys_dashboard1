@@ -35,10 +35,15 @@ def get_real_data():
             # st.success("✅ Using pre-computed demographics data from backend")
             return None, None, demographics_data, None, None
         
-        # Try to get data from Parquet file first, then fallback to API
-        responses = client.get_responses_parquet()
+        # Load data from API (Parquet endpoints not available yet)
+        responses = client.get_responses(survey="SB055_Profile_Survey1", limit=500, format="json")  # Reduced for cost efficiency
+        
+        # If main API fails, try individual survey endpoint
         if responses.empty:
-            responses = client.get_responses(survey="SB055_Profile_Survey1", limit=500, format="json")  # Reduced for cost efficiency
+            try:
+                responses = client.get_individual_survey("SB055_Profile_Survey1", limit=500, format="json")
+            except Exception:
+                pass
         
         if responses.empty:
             return None, None, None, None, None

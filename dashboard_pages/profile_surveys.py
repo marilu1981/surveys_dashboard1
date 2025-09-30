@@ -33,9 +33,16 @@ def get_real_data():
         with st.spinner("Loading profile survey data..."):
             responses = pd.DataFrame()
             
-            # Strategy 1: Skip Parquet attempts for now (backend doesn't serve via API)
-            # TODO: Enable when backend team adds Parquet API endpoint
-            responses = pd.DataFrame()  # Skip Parquet attempts
+            # Strategy 1: Try direct Parquet file access (complete dataset)
+            try:
+                responses = client.get_responses_parquet_direct()
+                if not responses.empty:
+                    st.success("✅ Loaded complete dataset from Parquet file!")
+                else:
+                    st.info("Parquet file access failed, trying API fallback...")
+            except Exception as e:
+                st.warning(f"Parquet loading error: {str(e)[:100]}...")
+                responses = pd.DataFrame()
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:

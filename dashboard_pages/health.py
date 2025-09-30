@@ -21,10 +21,8 @@ def load_health_data(full: bool = True):
         client = get_backend_client()
         if client:
             if full:
-                # Try to get data from Parquet file first, then fallback to API
-                health_data = client.get_responses_parquet()
-                if health_data.empty:
-                    health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000, format="json")
+                # Load data from individual survey endpoint (most reliable)
+                health_data = client.get_individual_survey("SB055_Profile_Survey1", limit=1000, format="json")
             else:
                 # Use the health surveys method with limit for sample data
                 health_data = client.get_health_surveys(limit=100)
@@ -320,7 +318,7 @@ def main():
                                 height=400,
                                 margin=dict(l=20, r=20, t=40, b=20)
                             )
-                            st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
+                            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
                         st.warning("No response column found in the data")
                     

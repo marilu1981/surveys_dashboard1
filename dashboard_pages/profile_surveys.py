@@ -35,13 +35,15 @@ def get_real_data():
             
             # Strategy 1: Try Parquet file (most efficient, complete dataset)
             try:
+                # Clear cache and force new method
+                if hasattr(client, 'get_responses_parquet'):
+                    client.get_responses_parquet.clear()  # Clear method cache
                 responses = client.get_responses_parquet()
                 if not responses.empty:
                     st.success("✅ Loaded complete dataset from Parquet file")
             except Exception as e:
-                # Suppress SSL certificate warnings for staging - common issue
-                if "SSL" not in str(e) and "certificate" not in str(e):
-                    st.info(f"Parquet unavailable, using API fallback: {str(e)[:50]}...")
+                # Show the actual error for debugging
+                st.warning(f"Parquet loading error: {str(e)[:100]}...")
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:
@@ -178,12 +180,21 @@ def main():
                 st.warning(f"⚠️ Only {len(responses):,} responses loaded. Data quality may be limited.")
         
         with col2:
-            if st.button("🔄 Refresh", help="Clear cache and reload fresh data from Parquet file"):
-                # Clear cached data
+            if st.button("🔄 Refresh", help="Clear all caches and reload with new Parquet method"):
+                # Clear all cached data and methods
                 st.session_state.profile_survey_loaded = False
                 st.session_state.profile_survey_data = None
                 get_real_data.clear()  # Clear Streamlit cache
-                st.success("Cache cleared! Reloading fresh data...")
+                
+                # Clear backend client method caches
+                client = get_backend_client()
+                if client and hasattr(client, 'get_responses_parquet'):
+                    try:
+                        client.get_responses_parquet.clear()
+                    except:
+                        pass
+                
+                st.success("All caches cleared! Using updated Parquet method...")
                 st.rerun()
         
         # Date Range Filter

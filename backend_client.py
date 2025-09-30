@@ -409,6 +409,60 @@ class BackendClient:
         st.info("📄 Parquet file access methods exhausted, using API fallback")
         return pd.DataFrame()
 
+    def get_responses_parquet_v2(self) -> pd.DataFrame:
+        """NEW VERSION: Get responses data from the Parquet file through API endpoints"""
+        
+        # Try different API endpoints that might serve the Parquet file
+        possible_endpoints = [
+            # Try as API endpoint with parquet format
+            "/api/responses/parquet",
+            "/api/data/responses.parquet", 
+            "/api/files/responses.parquet",
+            "/api/processed/responses.parquet",
+            "/processed/responses.parquet",
+        ]
+        
+        for i, endpoint in enumerate(possible_endpoints):
+            try:
+                if i == 0:
+                    st.info("🔍 NEW METHOD: Trying API endpoints for Parquet file...")
+                
+                # Use the _request method for consistent authentication and error handling
+                response = self._request("GET", endpoint)
+                
+                # Get content and validate
+                content = response.content
+                st.info(f"📦 Endpoint {i+1} ({endpoint}): Downloaded {len(content):,} bytes")
+                
+                # Quick validation - check if it's actually Parquet
+                if len(content) < 1000:
+                    st.info(f"   ↳ Too small, trying next endpoint...")
+                    continue
+                    
+                content_start = content[:50].decode('utf-8', errors='ignore').strip().lower()
+                if content_start.startswith(('<html', '<!doctype', '{', '[')):
+                    st.info(f"   ↳ Got HTML/JSON, trying next endpoint...")
+                    continue
+                
+                # Check for Parquet magic bytes
+                if content.startswith(b'PAR1') or b'PAR1' in content[-8:]:
+                    # Parse the Parquet file
+                    parquet_data = BytesIO(content)
+                    df = pd.read_parquet(parquet_data, engine='pyarrow')
+                    
+                    if not df.empty:
+                        st.success(f"✅ SUCCESS! Found Parquet at {endpoint}! Loaded {len(df):,} records")
+                        return df
+                else:
+                    st.info(f"   ↳ No Parquet magic bytes found")
+                        
+            except Exception as exc:
+                st.info(f"   ↳ Endpoint failed: {str(exc)[:50]}...")
+                continue
+        
+        st.info("📄 No valid Parquet endpoints found, using API fallback")
+        return pd.DataFrame()
+
     def test_connection(self) -> bool:
         try:
             health = self.get_health_check()

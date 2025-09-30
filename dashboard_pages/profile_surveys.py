@@ -35,10 +35,8 @@ def get_real_data():
             
             # Strategy 1: Try Parquet file (most efficient, complete dataset)
             try:
-                # Clear cache and force new method
-                if hasattr(client, 'get_responses_parquet'):
-                    client.get_responses_parquet.clear()  # Clear method cache
-                responses = client.get_responses_parquet()
+                # Force use of new method by calling it directly
+                responses = client.get_responses_parquet_v2() if hasattr(client, 'get_responses_parquet_v2') else client.get_responses_parquet()
                 if not responses.empty:
                     st.success("✅ Loaded complete dataset from Parquet file")
             except Exception as e:

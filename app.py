@@ -460,7 +460,7 @@ def render_response_trends(responses: pd.DataFrame, survey: str) -> None:
 
     if chart is not None:
         if hasattr(chart, "update_layout"):
-            st.plotly_chart(chart, use_container_width=True)
+            st.plotly_chart(chart, use_container_width=True, config={'displayModeBar': False})
         else:
             st.altair_chart(chart, use_container_width=True)
     else:

@@ -13,7 +13,13 @@ def load_funeral_surveys_data(client) -> pd.DataFrame:
     """Load funeral survey data with fallback strategies"""
     funeral_surveys = [
         "FI027_1Life_Funeral_Cover_Survey",
-        "FI028_1Life_Funeral_Cover_Survey2"
+        "FI027_1Life_Funeral_Cover_Survey-02",
+        "FI027_1Life_Funeral_Cover_Survey-03",
+        "FI028_1Life_Funeral_Cover_Survey2",
+        "FI028_1Life_Funeral_Cover_Survey2-02",
+        "FI028_1Life_Funeral_Cover_Survey2-03"
+       
+        
     ]
     
     all_responses = []
@@ -148,7 +154,7 @@ def create_question_chart(data: pd.DataFrame, question: str, chart_type: str = "
             yaxis={'categoryorder': 'total ascending'}
         )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     
     # Show data table
     with st.expander(f"📊 Data Table for: {question}"):

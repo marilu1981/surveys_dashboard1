@@ -456,22 +456,22 @@ def main():
                             x=shop_counts.values,
                             y=shop_counts.index,
                             orientation='h',
-                            title=f"Shop Visitation Frequency - Sample Size: {total_shop_responses:,}",
-                            labels={'x': 'Number of Visits', 'y': 'Shop'}
+                            title=f"Shop Visitation by Unique Visitors - Sample Size: {total_shop_responses:,}",
+                            labels={'x': 'Unique Visitors (PIDs)', 'y': 'Shop'}
                         )
                         fig_shops.update_layout(
                             height=400,
                             showlegend=False,
                             yaxis={'categoryorder': 'total ascending'}  # Rank high to low
                         )
-                        st.plotly_chart(fig_shops, use_container_width=True)
+                        st.plotly_chart(fig_shops, use_container_width=True, config={'displayModeBar': False})
                     
                     with col2:
-                        # Show shop data table
+                        # Show shop data table with percentages based on unique PIDs
                         shop_data = pd.DataFrame({
                             "Shop": shop_counts.index,
-                            "Visits": [f"{count:,}" for count in shop_counts.values],
-                            "Percentage": [f"{pct:.1f}%" for pct in (shop_counts.values / shop_counts.sum() * 100)]
+                            "Unique Visitors": [f"{count:,}" for count in shop_counts.values],
+                            "% of Total PIDs": [f"{pct:.1f}%" for pct in (shop_counts.values / total_shop_responses * 100)]
                         })
                         
                         st.table(shop_data)
@@ -542,7 +542,13 @@ def main():
                 if trip_costs:
                     # Create trip cost DataFrame
                     trip_df = pd.DataFrame({'cost': trip_costs})
-                    total_trip_responses = len(travel_responses)
+                    # Use unique PIDs for sample size to be consistent with other sections
+                    if 'pid' in filtered_travel.columns:
+                        total_trip_responses = filtered_travel['pid'].nunique()
+                        st.caption("📊 Sample size based on unique respondents (PIDs)")
+                    else:
+                        total_trip_responses = len(filtered_travel)
+                        st.caption("⚠️ Sample size based on response count (PID not available)")
                     
                     # Calculate statistics
                     avg_cost = trip_df['cost'].mean()
@@ -559,7 +565,7 @@ def main():
                             trip_df,
                             x='cost',
                             nbins=15,  # Fewer bins for better visualization of R10-R70 range
-                            title=f"Trip Cost Distribution - Sample Size: {total_trip_responses:,}",
+                            title=f"Trip Cost Distribution - Unique Respondents: {total_trip_responses:,}",
                             labels={'cost': 'Cost (R)', 'count': 'Number of Responses'},
                             color_discrete_sequence=['#FF6B6B']
                         )
@@ -570,14 +576,14 @@ def main():
                             yaxis_title="Number of Responses",
                             xaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_hist, use_container_width=True)
+                        st.plotly_chart(fig_hist, use_container_width=True, config={'displayModeBar': False})
                     
                     with col2:
                         # Box plot for cost distribution
                         fig_box = px.box(
                             trip_df,
                             y='cost',
-                            title=f"Sample Size: {total_trip_responses:,}",
+                            title=f"Unique Respondents: {total_trip_responses:,}",
                             labels={'cost': 'Cost (R)'},
                             color_discrete_sequence=['#4ECDC4']
                         )
@@ -587,7 +593,7 @@ def main():
                             yaxis_title="Cost (R)",
                             yaxis=dict(range=[0, 80])  # Focus on the relevant range
                         )
-                        st.plotly_chart(fig_box, use_container_width=True)
+                        st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
                     
                     # Cost statistics cards
                     st.markdown("##### Trip Cost Statistics")
@@ -646,14 +652,14 @@ def main():
                         title="Travel Cost Range Distribution",
                         color='Count',
                         color_continuous_scale='Viridis',
-                        labels={'Count': 'Number of Responses', 'Range': 'Cost Range'}
+                        labels={'Count': 'Number of Cost Entries', 'Range': 'Cost Range'}
                     )
                     fig_range.update_layout(
                         height=400,
                         showlegend=False,
                         xaxis_tickangle=-45
                     )
-                    st.plotly_chart(fig_range, use_container_width=True)
+                    st.plotly_chart(fig_range, use_container_width=True, config={'displayModeBar': False})
                     
                     # Show detailed cost data table
                     st.markdown("##### Cost Range Breakdown")
@@ -757,7 +763,7 @@ def main():
                             x=1.01
                         )
                     )
-                    st.plotly_chart(fig_money_pie, use_container_width=True)
+                    st.plotly_chart(fig_money_pie, use_container_width=True, config={'displayModeBar': False})
                 
                 with col2:
                     # Horizontal bar chart for money sources
@@ -766,7 +772,7 @@ def main():
                         y=money_dist.index,
                         orientation='h',
                         title=f"Main Source of Money - Sample Size: {total_money_responses:,}",
-                        labels={'x': 'Number of Responses', 'y': 'Money Source'},
+                        labels={'x': 'Unique Respondents (PIDs)', 'y': 'Money Source'},
                         color=money_dist.values,
                         color_continuous_scale='Viridis'
                     )
@@ -775,7 +781,7 @@ def main():
                         showlegend=False,
                         yaxis={'categoryorder': 'total ascending'}
                     )
-                    st.plotly_chart(fig_money_bar, use_container_width=True)
+                    st.plotly_chart(fig_money_bar, use_container_width=True, config={'displayModeBar': False})
                 
                 # Money source data table and Side Hustles chart
                 col_side_hustles, col_table = st.columns([1, 2])
@@ -811,15 +817,15 @@ def main():
                                 x=1.01
                             )
                         )
-                        st.plotly_chart(fig_side_hustles, use_container_width=True)
+                        st.plotly_chart(fig_side_hustles, use_container_width=True, config={'displayModeBar': False})
                     else:
                         st.info("No side hustles data available (all values are NaN)")
 
                 with col_table:
                     money_data = pd.DataFrame({
                         "Money Source": money_dist.index,
-                        "Count": [f"{count:,}" for count in money_dist.values],
-                        "Percentage": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
+                        "Unique Respondents": [f"{count:,}" for count in money_dist.values],
+                        "% of Total PIDs": [f"{pct:.1f}%" for pct in (money_dist.values / total_money_responses * 100)]
                     })
                     st.table(money_data)
         else:
@@ -848,7 +854,7 @@ def main():
                         y=sem_dist.index,
                         orientation='h',
                         title=f"SEM Segment Distribution - Unique Respondents: {total_sem_respondents:,}",
-                        labels={'x': 'Number of Responses', 'y': 'SEM Segment'},
+                        labels={'x': 'Unique Respondents (PIDs)', 'y': 'SEM Segment'},
                         color=sem_dist.values,
                         color_continuous_scale='viridis'
                     )
@@ -857,13 +863,13 @@ def main():
                         showlegend=False,
                         yaxis={'categoryorder': 'total ascending'}
                     )
-                    st.plotly_chart(fig_sem, use_container_width=True)
+                    st.plotly_chart(fig_sem, use_container_width=True, config={'displayModeBar': False})
                 
                 with col_sem_table:
                     sem_table_data = pd.DataFrame({
                         "SEM Segment": sem_dist.index,
-                        "Count": [f"{count:,}" for count in sem_dist.values],
-                        "Percentage": [f"{(count/total_sem_respondents*100):.1f}%" for count in sem_dist.values]
+                        "Unique Respondents": [f"{count:,}" for count in sem_dist.values],
+                        "% of Total PIDs": [f"{(count/total_sem_respondents*100):.1f}%" for count in sem_dist.values]
                     })
                     st.table(sem_table_data)
         

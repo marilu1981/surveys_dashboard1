@@ -89,14 +89,7 @@ def get_real_data():
 def render_precomputed_demographics(demographics_data):
     """Render demographics dashboard using pre-computed data"""
     
-    # Debug: Show available data structure
-    st.sidebar.write("**Debug: Available Data Sections:**")
-    for key in demographics_data.keys():
-        st.sidebar.write(f"- {key}")
-    if "overall_demographics" in demographics_data:
-        st.sidebar.write("**Overall Demographics Fields:**")
-        for key in demographics_data["overall_demographics"].keys():
-            st.sidebar.write(f"  - {key}")
+
     
     # Side Hustles Analysis
     overall_demographics = demographics_data.get("overall_demographics", {})
@@ -132,7 +125,22 @@ def render_precomputed_demographics(demographics_data):
         # Age Bar Chart
         age_data = overall_demographics.get("age_groups", {}) or overall_demographics.get("age_group", {})
         if age_data:
-            age_df = pd.DataFrame(list(age_data.items()), columns=['Age Group', 'Count'])
+            # Consolidate duplicate age groups
+            age_mapping = {
+                "Under 18": "<18",
+                "60+": "65+"  # Consolidate 60+ into 65+ if both exist
+            }
+            
+            # Create consolidated age data
+            consolidated_age = {}
+            for original_age, count in age_data.items():
+                consolidated_age_group = age_mapping.get(original_age, original_age)
+                if consolidated_age_group in consolidated_age:
+                    consolidated_age[consolidated_age_group] += count
+                else:
+                    consolidated_age[consolidated_age_group] = count
+            
+            age_df = pd.DataFrame(list(consolidated_age.items()), columns=['Age Group', 'Count'])
             total_age = age_df['Count'].sum()
             age_df['Percentage'] = (age_df['Count'] / total_age * 100).round(1)
             fig_age = px.bar(age_df, x='Age Group', y='Percentage', title="Age Groups",

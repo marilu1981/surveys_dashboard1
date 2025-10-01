@@ -37,10 +37,8 @@ def get_real_data():
             # Use the survey that we know works with Parquet
             # Since we've seen SB055_Profile_Survey1 working with Parquet, use it directly
             primary_survey = "SB055_Profile_Survey1"
-            st.info(f"📊 Using survey: {primary_survey} (optimized for Parquet)")
             
             try:
-                st.info("📊 Attempting to load Parquet data...")
                 # Try main API first with higher limit for Parquet efficiency
                 responses = client.get_responses_parquet(
                     survey=primary_survey, 
@@ -53,25 +51,19 @@ def get_real_data():
                         survey=primary_survey, 
                         limit=10000  # Parquet allows for larger samples
                     )
-                
-                if not responses.empty:
-                    st.success("✅ Loaded Parquet/JSON data successfully!")
             except Exception as e:
-                st.warning(f"Parquet loading failed: {str(e)[:50]}...")
+                pass  # Silently try fallback
             
             # Strategy 2: Fallback to JSON API if Parquet fails
             if responses.empty:
-                st.info("📡 Loading from API endpoint...")
                 try:
                     responses = client.get_responses(
                         survey=primary_survey, 
                         limit=10000,  # Higher limit since Parquet should handle this better
                         format="json"
                     )
-                    if not responses.empty:
-                        st.info("✅ Loaded sample dataset from API")
                 except Exception as e:
-                    st.warning(f"API loading failed: {str(e)[:50]}...")
+                    pass  # Silently try next fallback
                 
                 # Strategy 3: Last fallback to individual survey endpoint
                 if responses.empty:
@@ -81,10 +73,8 @@ def get_real_data():
                             limit=10000, 
                             format="json"
                         )
-                        if not responses.empty:
-                            st.info("✅ Loaded data from individual survey endpoint")
                     except Exception as e:
-                        st.error(f"All data loading methods failed: {str(e)[:50]}...")
+                        pass  # Final fallback failed
         
         if responses.empty:
             st.warning("Unable to retrieve profile survey responses from the backend")
@@ -196,21 +186,8 @@ def main():
         # Show data summary and controls
         col1, col2 = st.columns([3, 1])
         with col1:
-            # Determine data source based on dataset size and provide appropriate messaging
-            if len(responses) > 50000:
-                data_source = "Complete Parquet dataset"
-                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
-                st.info("📊 Using complete dataset for comprehensive analysis")
-            elif len(responses) > 10000:
-                data_source = "Large dataset"  
-                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
-            elif len(responses) > 1000:
-                data_source = "API sample"
-                st.success(f"✅ Loaded {len(responses):,} responses from {data_source}")
-                st.warning("⚠️ Using sample dataset. Results may not represent complete population.")
-            else:
-                data_source = "Limited data"
-                st.warning(f"⚠️ Only {len(responses):,} responses loaded. Data quality may be limited.")
+            # Show data summary without status messages
+            st.write(f"**Dataset:** {len(responses):,} responses loaded")
         
         with col2:
             if st.button("🔄 Refresh", help="Clear all caches and reload with new Parquet method"):
@@ -556,44 +533,7 @@ def main():
                     min_cost = trip_df['cost'].min()
                     max_cost = trip_df['cost'].max()
                     
-                    # Create two-column layout
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Cost distribution histogram with appropriate bins for R10-R70 range
-                        fig_hist = px.histogram(
-                            trip_df,
-                            x='cost',
-                            nbins=15,  # Fewer bins for better visualization of R10-R70 range
-                            title=f"Trip Cost Distribution - Unique Respondents: {total_trip_responses:,}",
-                            labels={'cost': 'Cost (R)', 'count': 'Number of Responses'},
-                            color_discrete_sequence=['#FF6B6B']
-                        )
-                        fig_hist.update_layout(
-                            height=400,
-                            showlegend=False,
-                            xaxis_title="Cost (R)",
-                            yaxis_title="Number of Responses",
-                            xaxis=dict(range=[0, 80])  # Focus on the relevant range
-                        )
-                        st.plotly_chart(fig_hist, use_container_width=True, config={'displayModeBar': False})
-                    
-                    with col2:
-                        # Box plot for cost distribution
-                        fig_box = px.box(
-                            trip_df,
-                            y='cost',
-                            title=f"Unique Respondents: {total_trip_responses:,}",
-                            labels={'cost': 'Cost (R)'},
-                            color_discrete_sequence=['#4ECDC4']
-                        )
-                        fig_box.update_layout(
-                            height=400,
-                            showlegend=False,
-                            yaxis_title="Cost (R)",
-                            yaxis=dict(range=[0, 80])  # Focus on the relevant range
-                        )
-                        st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
+
                     
                     # Cost statistics cards
                     st.markdown("##### Trip Cost Statistics")
@@ -649,15 +589,19 @@ def main():
                         range_df,
                         x='Range',
                         y='Count',
-                        title="Travel Cost Range Distribution",
+                        title=f"Trip Cost Distribution - Unique Respondents: {total_trip_responses:,}",
                         color='Count',
-                        color_continuous_scale='Viridis',
+                        color_continuous_scale='viridis',
                         labels={'Count': 'Number of Cost Entries', 'Range': 'Cost Range'}
                     )
                     fig_range.update_layout(
-                        height=400,
+                        height=500,
                         showlegend=False,
-                        xaxis_tickangle=-45
+                        xaxis_tickangle=-45,
+                        coloraxis_colorbar=dict(
+                            title="Count",
+                            titleside="right"
+                        )
                     )
                     st.plotly_chart(fig_range, use_container_width=True, config={'displayModeBar': False})
                     
@@ -738,53 +682,29 @@ def main():
                     total_money_responses = len(filtered_money)
                     st.caption("⚠️ Using response count (PID not available for unique counting)")
                 
-                # Create two-column layout
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Pie chart for money sources
-                    fig_money_pie = px.pie(
-                        values=money_dist.values,
-                        names=money_dist.index,
-                        title=f"Sample Size: {total_money_responses:,}",
-                        color_discrete_sequence=[
-                            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
-                        ]
+                # Show only horizontal bar chart for money sources
+                fig_money_bar = px.bar(
+                    x=money_dist.values,
+                    y=money_dist.index,
+                    orientation='h',
+                    title=f"Main Source of Money - Unique Respondents: {total_money_responses:,}",
+                    labels={'x': 'Unique Respondents (PIDs)', 'y': 'Money Source'},
+                    color=money_dist.values,
+                    color_continuous_scale='Viridis'
+                )
+                fig_money_bar.update_layout(
+                    height=500,
+                    showlegend=False,
+                    yaxis={'categoryorder': 'total ascending'},
+                    coloraxis_colorbar=dict(
+                        title="Count",
+                        titleside="right"
                     )
-                    fig_money_pie.update_layout(
-                        height=500,
-                        showlegend=True,
-                        legend=dict(
-                            orientation="v",
-                            yanchor="middle",
-                            y=0.5,
-                            xanchor="left",
-                            x=1.01
-                        )
-                    )
-                    st.plotly_chart(fig_money_pie, use_container_width=True, config={'displayModeBar': False})
-                
-                with col2:
-                    # Horizontal bar chart for money sources
-                    fig_money_bar = px.bar(
-                        x=money_dist.values,
-                        y=money_dist.index,
-                        orientation='h',
-                        title=f"Main Source of Money - Sample Size: {total_money_responses:,}",
-                        labels={'x': 'Unique Respondents (PIDs)', 'y': 'Money Source'},
-                        color=money_dist.values,
-                        color_continuous_scale='Viridis'
-                    )
-                    fig_money_bar.update_layout(
-                        height=500,
-                        showlegend=False,
-                        yaxis={'categoryorder': 'total ascending'}
-                    )
-                    st.plotly_chart(fig_money_bar, use_container_width=True, config={'displayModeBar': False})
+                )
+                st.plotly_chart(fig_money_bar, use_container_width=True, config={'displayModeBar': False})
                 
                 # Money source data table and Side Hustles chart
-                col_side_hustles, col_table = st.columns([1, 2])
+                col_side_hustles, col_table = st.columns([2, 1])
 
                 with col_side_hustles:
                     side_hustles_filtered = filtered_money[filtered_money['side_hustles'].notna()]

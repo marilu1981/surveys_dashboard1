@@ -148,27 +148,72 @@ def _get_survey_options() -> list[str]:
     client = get_backend_client()
     if not client:
         return []
-    index = client.get_surveys_index()
-    if not index.empty:
-        if "survey" in index.columns:
-            return sorted(index["survey"].dropna().unique().tolist())
-        if "title" in index.columns:
-            return sorted(index["title"].dropna().unique().tolist())
-    summary = client.get_survey_summary()
-    if isinstance(summary, dict):
-        surveys = summary.get("surveys", [])
-        if isinstance(surveys, list):
-            extracted: set[str] = set()
-            for item in surveys:
-                if isinstance(item, str):
-                    extracted.add(item)
-                elif isinstance(item, dict):
-                    title = item.get("survey_title") or item.get("title")
-                    if title:
-                        extracted.add(str(title))
-            if extracted:
-                return sorted(extracted)
-    return []
+    
+    raw_surveys = []
+    
+    # Try multiple sources to get comprehensive survey list
+    try:
+        # Method 1: Survey index
+        index = client.get_surveys_index()
+        if not index.empty:
+            for col in ["survey", "title", "survey_title"]:
+                if col in index.columns:
+                    surveys = index[col].dropna().unique().tolist()
+                    raw_surveys.extend(str(s) for s in surveys)
+    except Exception:
+        pass
+    
+    try:
+        # Method 2: Survey summary
+        summary = client.get_survey_summary()
+        if isinstance(summary, dict):
+            surveys = summary.get("surveys", [])
+            if isinstance(surveys, list):
+                for item in surveys:
+                    if isinstance(item, str):
+                        raw_surveys.append(item)
+                    elif isinstance(item, dict):
+                        for key in ["survey_title", "title", "survey"]:
+                            title = item.get(key)
+                            if title:
+                                raw_surveys.append(str(title))
+    except Exception:
+        pass
+    
+    # Add known surveys as fallback
+    fallback_surveys = [
+        "SB055_Profile_Survey1",
+        "SB056_Cellphone_Survey", 
+        "FI027_1Life_Funeral_Cover_Survey",
+        "FI028_1Life_Funeral_Cover_Survey2",
+        "TP005_Convinience_Store_Products_Survey_Briefing_Form"
+    ]
+    raw_surveys.extend(fallback_surveys)
+    
+    # Clean and deduplicate survey names with advanced deduplication
+    cleaned_surveys = {}  # Use dict to map normalized -> original name
+    
+    for survey in raw_surveys:
+        if survey:  # Skip empty/None values
+            # Clean whitespace and normalize
+            clean_survey = str(survey).strip()
+            if clean_survey:  # Skip empty strings after cleaning
+                # Create a normalized key for deduplication (lowercase, no spaces)
+                normalized_key = clean_survey.lower().replace(' ', '').replace('_', '').replace('-', '')
+                
+                # Keep the first (or "best") version of each survey
+                if normalized_key not in cleaned_surveys:
+                    cleaned_surveys[normalized_key] = clean_survey
+                else:
+                    # If we have a duplicate, keep the one that looks more "official"
+                    existing = cleaned_surveys[normalized_key]
+                    if len(clean_survey) > len(existing) or '_' in clean_survey:
+                        cleaned_surveys[normalized_key] = clean_survey
+    
+    # Convert back to sorted list using the original survey names
+    final_surveys = sorted(cleaned_surveys.values()) if cleaned_surveys else fallback_surveys
+    
+    return final_surveys
 
 
 def show_home_page() -> None:
@@ -232,7 +277,34 @@ def load_metrics_and_responses(_client, survey: str) -> tuple[dict[str, str], pd
     else:
         total = unique = updated = None
 
-    responses = _client.get_responses(survey=survey, limit=30000)
+    # Try to load responses with proper error handling
+    responses = pd.DataFrame()
+    
+    try:
+        # First try Parquet format for better performance
+        responses = _client.get_responses_parquet(survey=survey, limit=30000)
+    except Exception as parquet_error:
+        if "500" in str(parquet_error) or "Internal Server Error" in str(parquet_error):
+            st.warning(f"⚠️ Server error loading {survey} in Parquet format, trying JSON...")
+        
+        try:
+            # Fallback to JSON format
+            responses = _client.get_responses(survey=survey, limit=30000, format="json")
+        except Exception as json_error:
+            if "500" in str(json_error) or "Internal Server Error" in str(json_error):
+                st.warning(f"⚠️ Server error loading {survey} in JSON format, trying individual survey endpoint...")
+                
+                try:
+                    # Last fallback to individual survey endpoint
+                    responses = _client.get_individual_survey(survey, limit=30000, format="json")
+                except Exception as individual_error:
+                    st.error(f"❌ Unable to load {survey}: All loading methods failed")
+                    st.info("This survey may be temporarily unavailable. Please try again later.")
+                    responses = pd.DataFrame()
+            else:
+                st.error(f"❌ Error loading {survey}: {str(json_error)[:100]}...")
+                responses = pd.DataFrame()
+    
     if not isinstance(responses, pd.DataFrame):
         responses = pd.DataFrame()
 
@@ -401,13 +473,29 @@ def render_question_summary(responses: pd.DataFrame) -> None:
         return
 
     st.subheader("Top survey questions")
-    question_counts = (
-        responses["q"].dropna().value_counts().head(10).reset_index().rename(columns={"index": "Question", "q": "Responses"})
-    )
+    
+    # Count unique respondents per question instead of total responses
+    if "pid" in responses.columns:
+        question_counts = (
+            responses.groupby("q")["pid"].nunique()
+            .sort_values(ascending=False)
+            .head(10)
+            .reset_index()
+            .rename(columns={"q": "Question", "pid": "Unique Respondents"})
+        )
+        st.caption("Showing unique respondents per question to avoid double-counting")
+    else:
+        # Fallback to response count if PID not available
+        question_counts = (
+            responses["q"].dropna().value_counts().head(10).reset_index()
+            .rename(columns={"index": "Question", "q": "Responses"})
+        )
+        st.caption("Showing total responses (PID column not available for unique counting)")
+    
     if question_counts.empty:
         return
 
-    st.dataframe(question_counts, width='stretch')
+    st.dataframe(question_counts, use_container_width=True)
 
 
 def main() -> None:

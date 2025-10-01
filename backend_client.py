@@ -64,7 +64,13 @@ class BackendClient:
         except requests.exceptions.HTTPError as exc:
             status = exc.response.status_code if exc.response else "unknown"
             detail = exc.response.text[:400] if exc.response else str(exc)
-            st.error(f"HTTP {status} calling {url}: {detail}")
+            
+            # More graceful handling for specific error types
+            if status == 500:
+                st.warning(f"⚠️ Server error (500) for {url}")
+                st.info("This might be a temporary issue with processing this specific survey. Please try again later or contact support.")
+            else:
+                st.error(f"HTTP {status} calling {url}: {detail}")
             raise
         except requests.exceptions.RequestException as exc:
             st.error(f"Network error calling {url}: {exc}")
@@ -341,20 +347,50 @@ class BackendClient:
                 content = response.content
                 st.info(f"📦 Downloaded {len(content):,} bytes in Parquet format")
                 
-                # Check for Parquet magic bytes
-                if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
-                    # Parse the Parquet file
+                # Parse as Parquet format
+                try:
                     parquet_data = BytesIO(content)
                     df = pd.read_parquet(parquet_data, engine='pyarrow')
                     st.success(f"✅ Loaded {len(df):,} records from Parquet API")
                     return df
-                else:
-                    st.warning("Response doesn't appear to be valid Parquet format")
+                except Exception as parse_error:
+                    # Fallback: Check if it's still JSON (during transition period)
+                    if content.startswith(b'{"') or content.startswith(b'[{'):
+                        st.info("ℹ️ Received JSON during backend transition, parsing as JSON...")
+                        try:
+                            json_data = json.loads(content.decode('utf-8'))
+                            if isinstance(json_data, dict) and 'data' in json_data:
+                                df = pd.DataFrame(json_data['data'])
+                            elif isinstance(json_data, list):
+                                df = pd.DataFrame(json_data)
+                            else:
+                                df = pd.DataFrame([json_data]) if json_data else pd.DataFrame()
+                            
+                            if not df.empty:
+                                st.info(f"✅ Loaded {len(df):,} records from JSON fallback")
+                                return df
+                        except Exception as json_error:
+                            st.warning(f"Failed to parse as JSON fallback: {str(json_error)[:100]}...")
+                    else:
+                        st.warning(f"Failed to parse as Parquet: {str(parse_error)[:100]}...")
             
             return pd.DataFrame()
             
+        except requests.exceptions.HTTPError as http_error:
+            if http_error.response and http_error.response.status_code == 500:
+                st.warning(f"⚠️ Server error loading {survey} in Parquet format")
+                st.info("🔄 Falling back to JSON format for this survey...")
+                # Try JSON format as fallback
+                try:
+                    return self.get_responses(survey=survey, limit=limit, format="json")
+                except Exception as fallback_error:
+                    st.error(f"Both Parquet and JSON failed for {survey}: {str(fallback_error)[:100]}...")
+                    return pd.DataFrame()
+            else:
+                st.warning(f"HTTP error loading {survey}: {str(http_error)[:100]}...")
+                return pd.DataFrame()
         except Exception as e:
-            st.warning(f"Parquet API request failed: {str(e)[:100]}...")
+            st.warning(f"Parquet API request failed for {survey}: {str(e)[:100]}...")
             return pd.DataFrame()
         
         for i, url in enumerate(possible_endpoints):
@@ -450,18 +486,48 @@ class BackendClient:
                 content = response.content
                 st.info(f"📦 Downloaded {len(content):,} bytes from individual survey endpoint")
                 
-                # Check for Parquet magic bytes
-                if content.startswith(b'PAR1') or (len(content) > 8 and content[-4:] == b'PAR1'):
-                    # Parse the Parquet file
+                # Parse as Parquet format
+                try:
                     parquet_data = BytesIO(content)
                     df = pd.read_parquet(parquet_data, engine='pyarrow')
                     st.success(f"✅ Loaded {len(df):,} records from individual survey Parquet API")
                     return df
-                else:
-                    st.warning("Individual survey response doesn't appear to be valid Parquet format")
+                except Exception as parse_error:
+                    # Fallback: Check if it's still JSON (during transition period)
+                    if content.startswith(b'{"') or content.startswith(b'[{'):
+                        st.info("ℹ️ Individual survey endpoint returned JSON during transition...")
+                        try:
+                            json_data = json.loads(content.decode('utf-8'))
+                            if isinstance(json_data, dict) and 'data' in json_data:
+                                df = pd.DataFrame(json_data['data'])
+                            elif isinstance(json_data, list):
+                                df = pd.DataFrame(json_data)
+                            else:
+                                df = pd.DataFrame([json_data]) if json_data else pd.DataFrame()
+                            
+                            if not df.empty:
+                                st.info(f"✅ Loaded {len(df):,} records from JSON fallback")
+                                return df
+                        except Exception as json_error:
+                            st.warning(f"Failed to parse JSON fallback: {str(json_error)[:100]}...")
+                    else:
+                        st.warning(f"Individual survey Parquet parsing failed: {str(parse_error)[:100]}...")
             
             return pd.DataFrame()
             
+        except requests.exceptions.HTTPError as http_error:
+            if http_error.response and http_error.response.status_code == 500:
+                st.warning(f"⚠️ Server error loading {survey} via individual survey endpoint")
+                st.info("🔄 Falling back to JSON format via individual survey endpoint...")
+                # Try JSON format as fallback
+                try:
+                    return self.get_individual_survey(survey, limit=limit, format="json")
+                except Exception as fallback_error:
+                    st.error(f"Both Parquet and JSON failed for individual survey {survey}: {str(fallback_error)[:100]}...")
+                    return pd.DataFrame()
+            else:
+                st.warning(f"HTTP error loading individual survey {survey}: {str(http_error)[:100]}...")
+                return pd.DataFrame()
         except Exception as e:
             st.warning(f"Individual survey Parquet request failed: {str(e)[:100]}...")
             return pd.DataFrame()

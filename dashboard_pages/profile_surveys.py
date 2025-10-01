@@ -34,23 +34,28 @@ def get_real_data():
             responses = pd.DataFrame()
             
             # Strategy 1: Try Parquet first for optimal performance
+            # Use the survey that we know works with Parquet
+            # Since we've seen SB055_Profile_Survey1 working with Parquet, use it directly
+            primary_survey = "SB055_Profile_Survey1"
+            st.info(f"📊 Using survey: {primary_survey} (optimized for Parquet)")
+            
             try:
                 st.info("📊 Attempting to load Parquet data...")
-                # Try main API first
+                # Try main API first with higher limit for Parquet efficiency
                 responses = client.get_responses_parquet(
-                    survey="SB055_Profile_Survey1", 
-                    limit=5000  # Reasonable sample size for performance
+                    survey=primary_survey, 
+                    limit=10000  # Parquet can handle larger datasets efficiently
                 )
                 
                 # If main API fails, try individual survey endpoint
                 if responses.empty:
                     responses = client.get_responses_parquet_direct(
-                        survey="SB055_Profile_Survey1", 
-                        limit=5000
+                        survey=primary_survey, 
+                        limit=10000  # Parquet allows for larger samples
                     )
                 
                 if not responses.empty:
-                    st.success("✅ Loaded Parquet data successfully!")
+                    st.success("✅ Loaded Parquet/JSON data successfully!")
             except Exception as e:
                 st.warning(f"Parquet loading failed: {str(e)[:50]}...")
             
@@ -59,8 +64,8 @@ def get_real_data():
                 st.info("📡 Loading from API endpoint...")
                 try:
                     responses = client.get_responses(
-                        survey="SB055_Profile_Survey1", 
-                        limit=5000,  # Reasonable sample size
+                        survey=primary_survey, 
+                        limit=10000,  # Higher limit since Parquet should handle this better
                         format="json"
                     )
                     if not responses.empty:
@@ -72,8 +77,8 @@ def get_real_data():
                 if responses.empty:
                     try:
                         responses = client.get_individual_survey(
-                            "SB055_Profile_Survey1", 
-                            limit=5000, 
+                            primary_survey, 
+                            limit=10000, 
                             format="json"
                         )
                         if not responses.empty:
@@ -111,7 +116,26 @@ def get_real_data():
             unique_questions = []
             
         questions_df = pd.DataFrame({"question": unique_questions})
-        survey_ids = ["SB055_Profile_Survey1"]
+        
+        # Get available profile surveys dynamically
+        survey_ids = []
+        try:
+            # Get all available surveys and filter for profile surveys
+            survey_summary = client.get_survey_summary()
+            if isinstance(survey_summary, dict) and 'surveys' in survey_summary:
+                for survey_info in survey_summary['surveys']:
+                    if isinstance(survey_info, dict):
+                        title = survey_info.get('survey_title', '')
+                        if 'profile' in title.lower() or 'SB055' in title:
+                            survey_ids.append(title)
+            
+            # Fallback to hardcoded if no surveys found
+            if not survey_ids:
+                survey_ids = ["SB055_Profile_Survey1"]
+                
+        except Exception as e:
+            st.warning(f"Could not fetch survey list, using default: {str(e)[:50]}...")
+            survey_ids = ["SB055_Profile_Survey1"]
 
         return survey_ids, questions_df, questions_df, responses
 
@@ -279,10 +303,15 @@ def main():
         # st.markdown("#### 📋 Sample Data (First 5 rows)")
         # st.dataframe(responses.head(), use_container_width=True)
         
-        # Debug: Show available survey questions
+        # Debug: Show available survey questions (commented out for cleaner display)
+        # st.write(f"**Available columns:** {list(responses.columns)}")
+        
         if 'SURVEY_QUESTION' in responses.columns:
             available_questions = responses['SURVEY_QUESTION'].unique()
             # st.info(f"📋 Available Survey Questions ({len(available_questions)}): {', '.join(available_questions[:5])}{'...' if len(available_questions) > 5 else ''}")
+        elif 'q' in responses.columns:
+            available_questions = responses['q'].unique()
+            # st.info(f"📋 Available Questions via 'q' column ({len(available_questions)}): {', '.join(available_questions[:5])}{'...' if len(available_questions) > 5 else ''}")
         
         # Helper function to create filters for a specific section
         def create_section_filters(section_name, data, include_gender=True, include_age=True):
@@ -396,9 +425,27 @@ def main():
                         all_shops.extend(shops)
                 
                 if all_shops:
-                    # Count shop visits
-                    shop_counts = pd.Series(all_shops).value_counts()
-                    total_shop_responses = len(shop_responses)
+                    # Count shop visits (unique respondents per shop)
+                    if 'pid' in shop_responses.columns:
+                        # Create a mapping of shop to PIDs for unique counting
+                        shop_pid_data = []
+                        for idx, row in shop_responses.iterrows():
+                            shops = [s.strip() for s in str(row.get('resp', '')).split(',') if s.strip()]
+                            for shop in shops:
+                                shop_pid_data.append({'shop': shop, 'pid': row.get('pid')})
+                        
+                        if shop_pid_data:
+                            shop_df = pd.DataFrame(shop_pid_data)
+                            shop_counts = shop_df.groupby('shop')['pid'].nunique().sort_values(ascending=False)
+                            total_shop_responses = shop_responses['pid'].nunique()
+                            st.caption("📊 Counting unique respondents per shop to avoid double-counting")
+                        else:
+                            shop_counts = pd.Series(all_shops).value_counts()
+                            total_shop_responses = len(shop_responses)
+                    else:
+                        shop_counts = pd.Series(all_shops).value_counts()
+                        total_shop_responses = len(shop_responses)
+                        st.caption("⚠️ Using response count (PID not available for unique counting)")
                     
                     # Create two-column layout for chart and table
                     col1, col2 = st.columns(2)
@@ -623,20 +670,51 @@ def main():
         else:
             st.info(f"No responses found for the question: '{travel_question}'")
         st.markdown("--------------------------------")
-        # Main Source of Money Analysis
-        money_question = "What is your main source of money?"
-        money_responses = responses[responses['q'] == money_question]
+        # Main Source of Money/Employment Analysis
+        st.markdown("### 💼 Employment & Income Analysis")
         
-        # Debug: Show money source analysis data
-
-        st.write(f"**Question:** '{money_question}'")
-        # st.write(f"**Found responses:** {len(money_responses)}")
-        
-        # Debug: Check for similar questions
-        if money_responses.empty and 'q' in responses.columns:
-            similar_questions = [q for q in responses['q'].unique() if 'money' in q.lower() or 'source' in q.lower() or 'income' in q.lower()]
-            if similar_questions:
-                st.info(f" No exact match for money source question. Similar questions found: {similar_questions}")
+        # Strategy 1: Use direct employment column if available
+        if 'employment' in responses.columns:
+            st.write("**Data Source:** Employment column")
+            money_responses = responses[responses['employment'].notna()].copy()
+            money_responses['resp'] = money_responses['employment']
+            money_question = "Employment Status (from column data)"
+            st.write(f"**Found responses:** {len(money_responses)}")
+            
+        else:
+            # Strategy 2: Look for employment/money questions
+            possible_money_questions = [
+                "What is your main source of money?",
+                "Which of these describes you?",
+                "Please select your current employment status.",
+                "What is your employment status?",
+                "How do you make money?",
+                "What is your source of income?"
+            ]
+            
+            money_question = None
+            money_responses = pd.DataFrame()
+            
+            # Find the best matching question
+            for question in possible_money_questions:
+                temp_responses = responses[responses['q'] == question]
+                if not temp_responses.empty:
+                    money_question = question
+                    money_responses = temp_responses
+                    break
+            
+            # If no exact match, look for questions with employment/money keywords
+            if money_responses.empty and 'q' in responses.columns:
+                all_questions = responses['q'].unique()
+                money_related = [q for q in all_questions if any(keyword in q.lower() for keyword in ['money', 'source', 'income', 'employment', 'describes you', 'work'])]
+                
+                if money_related:
+                    money_question = money_related[0]  # Use the first match
+                    money_responses = responses[responses['q'] == money_question]
+                    st.info(f"📊 Using closest match: '{money_question}' ({len(money_responses)} responses)")
+            
+            st.write(f"**Question:** '{money_question}'")
+            st.write(f"**Found responses:** {len(money_responses)}")
         
         if not money_responses.empty:
             with st.container():
@@ -644,9 +722,15 @@ def main():
                 # Add filters for this section
                 filtered_money = create_section_filters("Money Source", money_responses)
                 
-                # Get money source distribution
-                money_dist = filtered_money['resp'].value_counts()
-                total_money_responses = len(filtered_money)
+                # Get money source distribution (count unique PIDs per response)
+                if 'pid' in filtered_money.columns:
+                    money_dist = filtered_money.groupby('resp')['pid'].nunique().sort_values(ascending=False)
+                    total_money_responses = filtered_money['pid'].nunique()
+                    st.caption("📊 Counting unique respondents to avoid double-counting")
+                else:
+                    money_dist = filtered_money['resp'].value_counts()
+                    total_money_responses = len(filtered_money)
+                    st.caption("⚠️ Using response count (PID not available for unique counting)")
                 
                 # Create two-column layout
                 col1, col2 = st.columns(2)
@@ -697,11 +781,16 @@ def main():
                 col_side_hustles, col_table = st.columns([1, 2])
 
                 with col_side_hustles:
-                    side_hustles_data = filtered_money['side_hustles'].dropna()
-                    side_hustles_count = len(side_hustles_data)
-
-                    if side_hustles_count > 0:
-                        side_hustles_dist = side_hustles_data.value_counts()
+                    side_hustles_filtered = filtered_money[filtered_money['side_hustles'].notna()]
+                    
+                    if not side_hustles_filtered.empty:
+                        # Count unique PIDs per side hustle to avoid double-counting
+                        if 'pid' in side_hustles_filtered.columns:
+                            side_hustles_dist = side_hustles_filtered.groupby('side_hustles')['pid'].nunique().sort_values(ascending=False)
+                            side_hustles_count = side_hustles_filtered['pid'].nunique()
+                        else:
+                            side_hustles_dist = side_hustles_filtered['side_hustles'].value_counts()
+                            side_hustles_count = len(side_hustles_filtered)
                         fig_side_hustles = px.pie(
                             values=side_hustles_dist.values,
                             names=side_hustles_dist.index,
@@ -735,6 +824,48 @@ def main():
                     st.table(money_data)
         else:
             st.info(f"No responses found for the question: '{money_question}'")
+        
+        # SEM Segment Analysis (if available)
+        if 'sem_segment' in responses.columns:
+            st.markdown("--------------------------------")
+            st.markdown("### 📊 SEM (Socioeconomic Market) Segments")
+            
+            sem_filtered = responses[responses['sem_segment'].notna()]
+            if not sem_filtered.empty:
+                # Count unique PIDs per SEM segment
+                if 'pid' in sem_filtered.columns:
+                    sem_dist = sem_filtered.groupby('sem_segment')['pid'].nunique().sort_values(ascending=False)
+                    total_sem_respondents = sem_filtered['pid'].nunique()
+                else:
+                    sem_dist = sem_filtered['sem_segment'].value_counts()
+                    total_sem_respondents = len(sem_filtered)
+                
+                col_sem_chart, col_sem_table = st.columns([2, 1])
+                
+                with col_sem_chart:
+                    fig_sem = px.bar(
+                        x=sem_dist.values,
+                        y=sem_dist.index,
+                        orientation='h',
+                        title=f"SEM Segment Distribution - Unique Respondents: {total_sem_respondents:,}",
+                        labels={'x': 'Number of Responses', 'y': 'SEM Segment'},
+                        color=sem_dist.values,
+                        color_continuous_scale='viridis'
+                    )
+                    fig_sem.update_layout(
+                        height=400,
+                        showlegend=False,
+                        yaxis={'categoryorder': 'total ascending'}
+                    )
+                    st.plotly_chart(fig_sem, use_container_width=True)
+                
+                with col_sem_table:
+                    sem_table_data = pd.DataFrame({
+                        "SEM Segment": sem_dist.index,
+                        "Count": [f"{count:,}" for count in sem_dist.values],
+                        "Percentage": [f"{(count/total_sem_respondents*100):.1f}%" for count in sem_dist.values]
+                    })
+                    st.table(sem_table_data)
         
                 
     else:
